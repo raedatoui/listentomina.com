@@ -1,0 +1,37 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+  height: 100%;
+  @media (max-width: 1024px) {
+    padding: 1rem 0;
+  }
+}
+
+.grid {
+  display: grid;
+  grid-auto-flow: column; /* Makes the grid flow in a horizontal direction */
+  gap: 10px;
+  overflow-x: auto; /* Enables horizontal scrolling if the content overflows */
+  align-items: baseline;
+  justify-items: left;
+}
+
+.gridItem {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  position: relative;
+}
+
+.sectionTitle {
+  margin-bottom: 1rem;
+  color: #ec7a39
+}
+
+.iconGrid {
+  grid-auto-columns: auto;
+}

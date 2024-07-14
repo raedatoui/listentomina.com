@@ -1,0 +1,195 @@
+.container {
+  margin-right: auto;
+  margin-left: auto;
+  padding-right: 1rem; /* px-4 */
+  padding-left: 1rem; /* px-4 */
+}
+
+.grid {
+  display: grid;
+  gap: 1.5rem; /* gap-6 */
+  grid-template-columns: repeat(
+    1,
+    minmax(0, 1fr)
+  ); /* Default mobile layout: 1 column */
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: 1fr 750px; /* lg:grid-cols-[1fr_400px] - larger screens have 2 columns */
+    gap: 3rem; /* lg:gap-12 */
+  }
+}
+
+.imageWrapper {
+  max-width: 100%; /* Ensure wrapper is not wider than its container */
+  /* For mobile view, let image take full width */
+}
+
+@media (min-width: 1024px) {
+  .imageWrapper {
+    order: 2; /* Make the image appear on the right in a 2-column layout */
+    width: 750px; /* Fixed width for larger screens */
+    height: 750px; /* Same height to maintain square aspect */
+  }
+}
+
+.image {
+  width: 100%; /* Make image fill the wrapper */
+  height: auto; /* Keep original image's aspect ratio */
+  object-fit: cover; /* Ensures image covers the square area */
+  border-radius: 0.75rem; /* rounded-xl */
+}
+
+@media (min-width: 1024px) {
+  .image {
+    height: 100%; /* On larger screens, set height to 100% of wrapper to maintain square aspect */
+  }
+}
+.content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem; /* space-y-4 */
+}
+
+.heading {
+  gap: 0.5rem; /* space-y-2 */
+}
+
+.title {
+  font-size: 1.875rem; /* text-3xl */
+  font-weight: bold; /* font-bold */
+  letter-spacing: -0.025em; /* tracking-tighter */
+}
+
+@media (min-width: 640px) {
+  .title {
+    font-size: 3.25rem; /* sm:text-5xl */
+  }
+}
+
+@media (min-width: 1280px) {
+  .title {
+    font-size: 4rem; /* xl:text-6xl */
+  }
+}
+
+.paragraph {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem; /* This adds visual space around the colon */
+}
+
+@media (min-width: 768px) {
+  .paragraph {
+    font-size: 1.25rem; /* md:text-xl */
+  }
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem; /* gap-2 */
+  margin-top: 1.25rem; /* mt-4 */
+  .button {
+    width: 270px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 20px; /* Adjust for more rounded corners */
+    font-weight: bold;
+    color: white;
+    font-size: 1em;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: left;
+    gap: 10px; /* Space between icon and text */
+  }
+}
+
+@media (max-width: 1024px) {
+  .buttons {
+    align-items: center;
+  }
+}
+
+.spotifyButton {
+  background-color: #1db954;
+  .link {
+    color: #ffffff;
+    text-decoration: none;
+  }
+}
+
+.appleMusicButton {
+  background-color: #000000;
+}
+
+.deezerButton {
+  background-color: #e8195b;
+}
+
+.youtubeButton {
+  background-color: #cc181e;
+}
+
+.soundcloudButton {
+  background-color: #ff7700;
+}
+
+.icon {
+  display: inline-block;
+  width: 24px; /* Adjust based on your icon size */
+  height: 24px; /* Adjust based on your icon size */
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.spotifyIcon {
+  background-image: url(../../public/images/icons/spotify.png);
+}
+
+.appleMusicIcon {
+  background-image: url(../../public/images/icons/apple.png);
+}
+
+.deezerIcon {
+  background-image: url(../../public/images/icons/deezer.png);
+}
+
+.youtubeIcon {
+  background-image: url(../../public/images/icons/youtube.png);
+}
+
+.soundcloudIcon {
+  background-image: url(../../public/images/icons/soundcloud.png);
+}
+
+.button:hover {
+  opacity: 0.9; /* Slight opacity change on hover */
+}
+
+.symbol {
+  width: 50px;
+  aspect-ratio: 578/1104;
+  height: 95px;
+}
+
+.symbolContainer {
+  display: flex;
+  justify-content: center;
+}
+
+.section2 {
+  padding-top: 0;
+}
+
+.title {
+  color: #ec7a39;
+}
+@media (max-width: 1024px) {
+  .title {
+    text-align: center;
+  }
+}
