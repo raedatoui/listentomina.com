@@ -57,6 +57,7 @@ export default function Listen() {
         {links.map((link, index) => (
           <Link key={index} href={link.href} target="_blank">
             <Image
+              className={styles.icon}
               src={link.src}
               alt={link.alt}
               width={link.width}

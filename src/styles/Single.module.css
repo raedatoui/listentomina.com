@@ -7,11 +7,11 @@
 
 .grid {
   display: grid;
-  gap: 1.5rem; /* gap-6 */
   grid-template-columns: repeat(
     1,
     minmax(0, 1fr)
   ); /* Default mobile layout: 1 column */
+  gap: 1.5rem; /* gap-6 */
 }
 
 @media (min-width: 1024px) {
@@ -35,10 +35,10 @@
 }
 
 .image {
+  border-radius: 0.75rem; /* rounded-xl */
   width: 100%; /* Make image fill the wrapper */
   height: auto; /* Keep original image's aspect ratio */
   object-fit: cover; /* Ensures image covers the square area */
-  border-radius: 0.75rem; /* rounded-xl */
 }
 
 @media (min-width: 1024px) {
@@ -58,8 +58,8 @@
 }
 
 .title {
-  font-size: 1.875rem; /* text-3xl */
   font-weight: bold; /* font-bold */
+  font-size: 1.875rem; /* text-3xl */
   letter-spacing: -0.025em; /* tracking-tighter */
 }
 
@@ -93,18 +93,18 @@
   gap: 1rem; /* gap-2 */
   margin-top: 1.25rem; /* mt-4 */
   .button {
-    width: 270px;
-    padding: 10px 20px;
+    display: inline-flex;
+    justify-content: left;
+    align-items: center;
+    gap: 10px; /* Space between icon and text */
+    cursor: pointer;
     border: none;
     border-radius: 20px; /* Adjust for more rounded corners */
-    font-weight: bold;
+    padding: 10px 20px;
+    width: 270px;
     color: white;
+    font-weight: bold;
     font-size: 1em;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: left;
-    gap: 10px; /* Space between icon and text */
   }
 }
 
@@ -140,10 +140,10 @@
 
 .icon {
   display: inline-block;
-  width: 24px; /* Adjust based on your icon size */
-  height: 24px; /* Adjust based on your icon size */
   background-size: contain;
   background-repeat: no-repeat;
+  width: 24px; /* Adjust based on your icon size */
+  height: 24px; /* Adjust based on your icon size */
 }
 
 .spotifyIcon {
@@ -171,8 +171,8 @@
 }
 
 .symbol {
-  width: 50px;
   aspect-ratio: 578/1104;
+  width: 50px;
   height: 95px;
 }
 
@@ -182,7 +182,7 @@
 }
 
 .section2 {
-  padding-top: 0;
+  padding-top: 8rem;
 }
 
 .title {

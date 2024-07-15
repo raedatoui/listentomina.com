@@ -60,11 +60,6 @@ export default function Release({
   onScLoaded,
 }: ReleaseProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // const toggleState = () => {
-  //   setIsToggled(prevState => !prevState);
-  // };
-
   const handleScLoaded = (trackId: string) => {
     const w = window.SC.Widget(document.getElementById(trackId));
     onScLoaded(trackId, w);
@@ -72,7 +67,6 @@ export default function Release({
       onScLoaded(trackId, w);
     });
   };
-
   useEffect(() => {
     if (window.SC && iframeRef.current) {
       handleScLoaded(release.trackId);
@@ -84,17 +78,6 @@ export default function Release({
       }, 1000);
     }
   }, [release.trackId, iframeRef.current]);
-
-  // useEffect(() => {
-  //   if (widget) {
-  //     if (isToggled) {
-  //       widget.play();
-  //     } else {
-  //       widget.pause();
-  //     }
-  //   }
-  // }, [isToggled, widget]);
-
   return (
     <>
       <div className={styles.imageWrapper}>

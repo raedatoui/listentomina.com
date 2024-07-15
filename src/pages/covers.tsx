@@ -1,3 +1,4 @@
+import React, { useEffect } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 import localFont from 'next/font/local';
@@ -56,6 +57,17 @@ export default function Home() {
       file: 'ep-disobey.webp',
     },
   ];
+
+  useEffect(() => {
+    const titleElement = document.getElementById('logo');
+    if (titleElement) {
+      const titleHeight = titleElement.offsetHeight;
+      document
+        .getElementById('c')
+        ?.style.setProperty('padding-top', `${titleHeight}px`);
+    }
+  }, []); // Empty dependency array ensures this runs once after the initial render
+
   return (
     <>
       <Head>
@@ -64,21 +76,20 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <main className={`${loveloFont.className}`}>
-        <div className={`${coverStyles.gridContainer}`}>
-          {covers.map((cover, index) => (
-            <div className={`${coverStyles.gridItem}`} key={index}>
-              <Image
-                src={`/images/covers/${cover.file}`}
-                alt={cover.alt}
-                className={`${coverStyles.gridImage}`}
-                width={750}
-                height={750}
-              />
-            </div>
-          ))}
-        </div>
-      </main>
+
+      <div className={`${coverStyles.gridContainer}`} id="c">
+        {covers.map((cover, index) => (
+          <div className={`${coverStyles.gridItem}`} key={index}>
+            <Image
+              src={`/images/covers/${cover.file}`}
+              alt={cover.alt}
+              className={`${coverStyles.gridImage}`}
+              width={750}
+              height={750}
+            />
+          </div>
+        ))}
+      </div>
     </>
   );
 }

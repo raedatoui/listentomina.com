@@ -3,6 +3,7 @@
   flex-direction: column;
   padding-top: 2rem;
   padding-bottom: 2rem;
+  width: 100%;
   height: 100%;
   @media (max-width: 1024px) {
     padding: 1rem 0;
@@ -11,27 +12,45 @@
 
 .grid {
   display: grid;
-  grid-auto-flow: column; /* Makes the grid flow in a horizontal direction */
-  gap: 10px;
-  overflow-x: auto; /* Enables horizontal scrolling if the content overflows */
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  justify-content: center;
   align-items: baseline;
-  justify-items: left;
+  justify-items: center;
+  gap: 2px;
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .gridItem {
   display: flex;
+  position: relative;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  flex-direction: column;
+  width: 150px;
   text-align: center;
-  position: relative;
 }
 
 .sectionTitle {
   margin-bottom: 1rem;
-  color: #ec7a39
+  color: #ec7a39;
 }
 
 .iconGrid {
-  grid-auto-columns: auto;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(80px, 1fr)
+  ); /* Wrap items and maintain their width */
+  justify-items: center;
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(40px, 1fr)
+    ); /* Wrap items and maintain their width */
+    .icon {
+      width: auto;
+      height: 25px;
+    }
+  }
 }

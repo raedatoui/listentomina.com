@@ -12,7 +12,7 @@ export default function Follow() {
           <Image
             src="/images/insta.png"
             alt="Instagram"
-            className={`${styles.insta}`}
+            className={`${styles.icon}`}
             width={40}
             height={40}
           />
@@ -21,7 +21,7 @@ export default function Follow() {
           <Image
             src="/images/tiktok.png"
             alt="TikTok"
-            className={`${styles.tiktok}`}
+            className={`${styles.icon}`}
             width={35}
             height={40}
           />
@@ -30,7 +30,7 @@ export default function Follow() {
           <Image
             src="/images/email.png"
             alt="TikTok"
-            className={`${styles.insta}`}
+            className={`${styles.icon}`}
             width={50}
             height={50}
           />
