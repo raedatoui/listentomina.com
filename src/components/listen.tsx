@@ -53,15 +53,15 @@ export default function Listen() {
   return (
     <section className={styles.section}>
       <h1 className={styles.sectionTitle}>Listen</h1>
-      <div className={`${styles.grid} ${styles.iconGrid}`}>
+      <div className={`${styles.iconGrid}`}>
         {links.map((link, index) => (
           <Link key={index} href={link.href} target="_blank">
             <Image
               className={styles.icon}
               src={link.src}
               alt={link.alt}
-              width={link.width}
-              height={link.height}
+              width={link.width * 1.5}
+              height={link.height * 1.5}
             />
           </Link>
         ))}

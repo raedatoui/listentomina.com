@@ -83,8 +83,8 @@ export default function Release({
       <div className={styles.imageWrapper}>
         <Image
           onClick={() => onToggle()}
-          height="150"
-          width="150"
+          height="180"
+          width="180"
           src={`/images/covers/${release.cover.file}`}
           alt={release.cover.alt}
           className={`${styles.image} ${isToggled ? styles.darkened : ''}`}

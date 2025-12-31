@@ -10,25 +10,25 @@
   }
 }
 
-.grid {
+.releaseGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   justify-content: center;
   align-items: baseline;
   justify-items: center;
-  gap: 2px;
+  gap: 8px 2px;
   @media (max-width: 1024px) {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-.gridItem {
+.releaseGridItem {
   display: flex;
   position: relative;
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  width: 150px;
+  width: 180px;
   text-align: center;
 }
 
@@ -38,19 +38,17 @@
 }
 
 .iconGrid {
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(80px, 1fr)
-  ); /* Wrap items and maintain their width */
+  display: grid;
+  justify-content: center;
+  align-items: baseline;
   justify-items: center;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   @media (max-width: 1024px) {
-    grid-template-columns: repeat(
-      auto-fill,
-      minmax(40px, 1fr)
-    ); /* Wrap items and maintain their width */
-    .icon {
-      width: auto;
-      height: 25px;
-    }
+    grid-template-columns: repeat(auto-fill,minmax(80px, 1fr));
+    /*.icon {*/
+    /*  width: auto;*/
+    /*  height: 60px;*/
+    /*}*/
   }
 }

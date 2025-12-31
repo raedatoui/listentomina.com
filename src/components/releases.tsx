@@ -1,9 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import styles from '../styles/Section.module.css';
 import Release from '@/components/release';
-import Dict = NodeJS.Dict;
 
 const releases = [
+  {
+    cover: {
+      name: "Can't Go Back",
+      alt: 'cant go back',
+      file: 'light-single-cant-go-back.webp',
+    },
+    links: {
+      spotify:
+        'https://open.spotify.com/track/17zHmJixa8XG4KXWOKoBF2?si=915ad66f23c24885',
+      appleMusic: 'https://music.apple.com/us/album/disobey-single/1747009250',
+      soundcloud: 'https://soundcloud.com/listentomina/disobey',
+      youtube: 'https://youtu.be/NjJu7k483GE?si=fFsIT1G3UPL94twF',
+      deezer: 'https://deezer.page.link/Q57rdDSxBzXD75fh9',
+    },
+    trackId: '1687048506',
+  },
   {
     cover: {
       name: 'Disobey',
@@ -92,7 +107,6 @@ export default function Releases({ scLoaded }: ReleaseProps) {
   const [widgets, setWidgets] = useState<Record<string, Widget>>({});
 
   const handleToggle = (index: number) => {
-    debugger;
     setToggledIndex(prevIndex => (prevIndex === index ? null : index));
   };
 
@@ -118,9 +132,9 @@ export default function Releases({ scLoaded }: ReleaseProps) {
   return (
     <section className={styles.section}>
       <h1 className={styles.sectionTitle}>Releases</h1>
-      <div className={styles.grid}>
+      <div className={styles.releaseGrid}>
         {releases.map((release, index) => (
-          <div key={index} className={styles.gridItem}>
+          <div key={index} className={styles.releaseGridItem}>
             <Release
               release={release}
               scLoaded={scLoaded}

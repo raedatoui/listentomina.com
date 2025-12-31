@@ -79,14 +79,14 @@
   padding: 0;
 }
 
-html,
-body {
+html {
   max-width: 100vw;
-  overflow-x: hidden;
 }
 
 body {
   background: url('/images/bg.jpg') no-repeat center center fixed;
   background-size: cover;
   color: #fff;
+  max-width: 1440px;
+  margin: 0 auto;
 }
