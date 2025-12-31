@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
-import localFont from 'next/font/local';
 import styles from '@/styles/Home.module.css';
 import Releases from '@/components/releases';
 import Script from 'next/script';
 import Listen from '@/components/listen';
 import Follow from '@/components/follow';
-import Shop from '@/components/shop';
 
 export default function Home() {
   const [scLoaded, setScLoaded] = useState(false);
@@ -25,7 +23,6 @@ export default function Home() {
         <div className={styles.content}>
           <Releases scLoaded={scLoaded} />
           <Listen />
-          <Shop />
           <Follow />
         </div>
         <div className={styles.avatarContainer}>

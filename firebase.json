@@ -1,0 +1,33 @@
+{
+  "hosting": {
+    "public": "out",
+    "site": "listentomina",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "covers",
+        "destination": "/covers.html"
+      },
+      {
+        "source": "wanted",
+        "destination": "/wanted.html"
+      },
+      {
+        "source": "ride",
+        "destination": "/ride.html"
+      },
+      {
+        "source": "disobey",
+        "destination": "/disobey.html"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
