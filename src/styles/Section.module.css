@@ -1,54 +1,69 @@
 .section {
-  display: flex;
-  flex-direction: column;
-  padding-top: 2rem;
-  padding-bottom: 2rem;
-  width: 100%;
-  height: 100%;
-  @media (max-width: 1024px) {
-    padding: 1rem 0;
-  }
+    display: flex;
+    flex-direction: column;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    width: 100%;
+    height: 100%;
+    @media (max-width: 1024px) {
+        padding: 1rem 0;
+    }
 }
 
 .releaseGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  justify-content: center;
-  align-items: baseline;
-  justify-items: center;
-  gap: 8px 2px;
-  @media (max-width: 1024px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    align-items: start;
+    gap: 28px 18px;
+    @media (max-width: 1024px) {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 22px 16px;
+    }
 }
 
 .releaseGridItem {
-  display: flex;
-  position: relative;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  width: 180px;
-  text-align: center;
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    text-align: center;
+}
+
+.releaseGridItem.expanded {
+    grid-column: 1 / -1;
+    width: 100%;
 }
 
 .sectionTitle {
-  margin-bottom: 1rem;
-  color: #ec7a39;
+    margin-bottom: 1rem;
+    color: #ec7a39;
 }
 
 .iconGrid {
-  display: grid;
-  justify-content: center;
-  align-items: baseline;
-  justify-items: center;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  @media (max-width: 1024px) {
-    grid-template-columns: repeat(auto-fill,minmax(80px, 1fr));
-    /*.icon {*/
-    /*  width: auto;*/
-    /*  height: 60px;*/
-    /*}*/
-  }
+    display: grid;
+    justify-content: center;
+    align-items: baseline;
+    justify-items: center;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    @media (max-width: 1024px) {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        /*.icon {*/
+        /*  width: auto;*/
+        /*  height: 60px;*/
+        /*}*/
+    }
+}
+
+.icon {
+    transition:
+        transform 0.18s ease,
+        filter 0.18s ease;
+    cursor: pointer;
+}
+
+.icon:hover {
+    transform: translateY(-4px) scale(1.06);
+    filter: brightness(1.12) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.45));
 }

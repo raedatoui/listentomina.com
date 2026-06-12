@@ -1,53 +1,156 @@
 .imageWrapper {
-  position: relative;
-  cursor: pointer;
-  width: 180px;
-  height: 180px;
-  &:hover .playButton {
-    display: flex;
-  }
+    position: relative;
+    cursor: pointer;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
+}
+
+.imageWrapper:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.55);
+}
+
+.imageWrapper:hover .image {
+    filter: brightness(0.55);
+    transform: scale(1.05);
+}
+
+.imageWrapper:hover .playButton {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
 }
 
 .image {
-  transition: filter 0.3s;
-  width: 100%;
-  height: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition:
+        filter 0.3s ease,
+        transform 0.4s ease;
 }
 
 .image.darkened {
-  filter: brightness(50%);
+    filter: brightness(50%);
 }
 
 .playButton {
-  display: none;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  justify-content: center;
-  align-items: center;
-  transform: translate(-50%, -50%);
-  cursor: pointer;
-  border: none;
-  border-radius: 50%;
-  background-color: rgba(236, 122, 57, 0.8);
-  width: 50px;
-  height: 50px;
-  color: white;
-  font-size: 16px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0;
+    cursor: pointer;
+    border: 2px solid rgba(255, 255, 255, 0.92);
+    border-radius: 50%;
+    background-color: rgba(236, 122, 57, 0.92);
+    width: 56px;
+    height: 56px;
+    color: white;
+    transition:
+        opacity 0.25s ease,
+        transform 0.25s ease,
+        background-color 0.2s ease;
+}
+
+.playButton:hover {
+    background-color: rgb(236, 122, 57);
+    transform: translate(-50%, -50%) scale(1.08);
 }
 
 .playButton svg {
-  transform: scale(0.75);
-  width: 100%;
-  height: 100%;
+    width: 100%;
+    height: 100%;
+    transform: scale(0.5) translateX(3px);
 }
 
 .playButton.visible {
-  display: block;
+    display: block;
+}
+
+.playerWrapper {
+    position: relative;
+    width: 100%;
+    animation: expandIn 0.25s ease;
+}
+
+@keyframes expandIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.player {
+    display: block;
+    width: 100%;
+    height: 300px;
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.playerCaption {
+    overflow: hidden;
+    margin-top: 2px;
+    width: 100%;
+    color: #cccccc;
+    font-weight: 100;
+    font-size: 10px;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-align: left;
+}
+
+.playerCaption a {
+    color: #cccccc;
+    text-decoration: none;
+}
+
+.closeButton {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    color: white;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+        background-color 0.2s ease,
+        transform 0.2s ease;
+}
+
+.closeButton:hover {
+    background-color: rgba(236, 122, 57, 0.95);
+    transform: scale(1.1);
 }
 
 .title {
-  margin-top: 10px;
-  width: 150px;
-  text-wrap: wrap;
+    margin-top: 12px;
+    width: 100%;
+    text-wrap: balance;
 }

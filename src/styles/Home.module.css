@@ -1,63 +1,71 @@
 .title {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  z-index: 1;
-  padding-top: 1rem;
-  width: 100%;
-  color: white;
-  font-size: 3rem;
-  @media (max-width: 1024px) {
-    position: initial;
-  }
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    z-index: 1;
+    padding-top: 1rem;
+    width: 100%;
+    color: white;
+    font-size: 3rem;
+    @media (max-width: 1024px) {
+        position: initial;
+    }
 }
 
 .container {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: center;
-  margin: 0 1rem;
-  height: 100vh;
-  @media (max-width: 1024px) {
-    grid-template-columns: 1fr;
-    grid-auto-flow: dense;
-    height: auto;
-  }
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    margin: 0 1rem;
+    height: 100vh;
+    @media (max-width: 1024px) {
+        grid-template-columns: 1fr;
+        grid-auto-flow: dense;
+        height: auto;
+    }
 }
 
 .content {
-  width: 100%;
-  @media (max-width: 1024px) {
-    order: 2;
-  }
+    width: 100%;
+    @media (max-width: 1024px) {
+        order: 2;
+    }
 }
 
 .avatarContainer {
-  display: flex;
-  justify-content: right;
-  align-items: start;
-  width: 100%;
-  height: 100%;
-  @media (max-width: 1024px) {
-    position: initial;
-    justify-content: center;
+    display: flex;
+    justify-content: right;
+    align-items: start;
     width: 100%;
-    height: auto;
-  }
+    height: 100%;
+    @media (max-width: 1024px) {
+        position: initial;
+        justify-content: center;
+        width: 100%;
+        height: auto;
+    }
 }
-.avatar {
-  mask-image: url('data:image/svg+xml;utf8,<svg preserveAspectRatio="none" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0" y="0" viewBox="0 0 100 100" xml:space="preserve"><style type="text/css">.blur{filter:url(%23softedge);}</style><filter id="softedge"><feGaussianBlur stdDeviation="3.5"></feGaussianBlur></filter><g class="blur"><rect x="10" y="10" width="82" height="83"/></g></svg>');
-  mask-size: cover;
-  width: auto;
-  max-width: 100%;
-  height: 80%;
-  max-height: 100%;
-  object-fit: cover;
-  margin-top: -20px;
-  @media (max-width: 1024px) {
-    order: 1;
+.footer {
     width: 100%;
-    max-width: 60%;
-    margin-top: 0;
-  }
+    padding: 1rem;
+    text-align: center;
+    color: white;
+    font-size: 0.75rem;
+}
+
+.avatar {
+    mask-image: url('data:image/svg+xml;utf8,<svg preserveAspectRatio="none" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0" y="0" viewBox="0 0 100 100" xml:space="preserve"><style type="text/css">.blur{filter:url(%23softedge);}</style><filter id="softedge"><feGaussianBlur stdDeviation="3.5"></feGaussianBlur></filter><g class="blur"><rect x="10" y="10" width="82" height="83"/></g></svg>');
+    mask-size: cover;
+    width: auto;
+    max-width: 100%;
+    height: 80%;
+    max-height: 100%;
+    object-fit: cover;
+    margin-top: -20px;
+    @media (max-width: 1024px) {
+        order: 1;
+        width: 100%;
+        max-width: 60%;
+        margin-top: 0;
+    }
 }
