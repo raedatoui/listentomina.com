@@ -21,8 +21,12 @@
                 "destination": "/disobey.html"
             },
             {
-                "source": "saveme{,/**}",
-                "destination": "/saveme/index.html"
+                "source": "saveme",
+                "destination": "/saveme.html"
+            },
+            {
+                "source": "index2",
+                "destination": "/index2.html"
             },
             {
                 "source": "**",

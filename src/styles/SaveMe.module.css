@@ -1,0 +1,202 @@
+.page {
+    position: relative;
+    min-height: 100vh;
+    overflow: hidden;
+    color: #fff;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* fixed so it covers the full viewport even though body is capped at 1440px */
+.bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: url("/images/saveme/bg-design-1.jpg") no-repeat center center;
+    background-size: cover;
+}
+
+.container {
+    position: relative;
+    width: 100%;
+    max-width: 80rem;
+    margin: 0 auto;
+    padding: 1rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    @media (min-width: 768px) {
+        padding: 1rem 3.5rem;
+    }
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.logo {
+    height: 5rem;
+    width: auto;
+    flex-shrink: 0;
+    filter: brightness(0) invert(1);
+    @media (min-width: 768px) {
+        height: 7rem;
+    }
+}
+
+.rule {
+    height: 1px;
+    flex: 1;
+    background: linear-gradient(to right, #ff7a1a, transparent);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    @media (min-width: 768px) {
+        grid-template-columns: 1fr 1fr;
+        gap: 2.5rem;
+    }
+}
+
+.playerCol {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    order: 2;
+    @media (min-width: 768px) {
+        order: 1;
+    }
+}
+
+.playerBox {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    box-shadow:
+        0 0 0 1px rgba(255, 122, 26, 0.14),
+        0 32px 80px rgba(0, 0, 0, 0.85),
+        0 0 80px rgba(255, 122, 26, 0.07);
+}
+
+.playerBox iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.attribution {
+    font-family: Interstate, "Lucida Grande", "Lucida Sans Unicode", "Lucida Sans", Garuda, Verdana, Tahoma, sans-serif;
+    font-size: 10px;
+    font-weight: 300;
+    letter-spacing: 0.025em;
+    color: rgba(255, 255, 255, 0.3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.attribution a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.attribution a:hover {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.separator {
+    margin: 0 0.25rem;
+    color: rgba(255, 255, 255, 0.2);
+}
+
+.portraitBox {
+    width: 100%;
+    overflow: hidden;
+    aspect-ratio: 3 / 4;
+    max-height: 550px;
+    order: 1;
+    @media (min-width: 768px) {
+        order: 2;
+    }
+}
+
+.portrait {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    mask-image: radial-gradient(ellipse 90% 80% at 50% 30%, black 25%, rgba(0, 0, 0, 0.65) 52%, transparent 76%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 30%, black 25%, rgba(0, 0, 0, 0.65) 52%, transparent 76%);
+}
+
+.copy {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    align-items: center;
+    text-align: center;
+    padding: 2rem;
+    @media (min-width: 768px) {
+        padding: 2rem 5rem;
+    }
+}
+
+.accent {
+    width: 3rem;
+    height: 1px;
+    margin-bottom: 0.25rem;
+    background: #ff7a1a;
+}
+
+.title {
+    font-size: clamp(1.4rem, 3vw, 2.2rem);
+    line-height: 1.25;
+    letter-spacing: 0.025em;
+}
+
+.paragraphs {
+    font-size: 0.95rem;
+    line-height: 1.625;
+    color: rgba(255, 255, 255, 0.8);
+    max-width: 72ch;
+    text-align: justify;
+    @media (min-width: 768px) {
+        font-size: 1rem;
+    }
+}
+
+.paragraphs p + p {
+    margin-top: 1.25rem;
+}
+
+.footer {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.footer a {
+    display: inline-flex;
+    align-items: center;
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.footer a:hover {
+    color: #fff;
+}

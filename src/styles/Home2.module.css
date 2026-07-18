@@ -1,0 +1,100 @@
+.page {
+    position: relative;
+    min-height: 100vh;
+    overflow: hidden;
+    color: #fff;
+}
+
+/* fixed so it covers the full viewport even though body is capped at 1440px */
+.bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: #000;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 1rem 1.5rem;
+    @media (min-width: 768px) {
+        padding: 1.5rem 1.5rem;
+    }
+}
+
+.logo {
+    width: 240px;
+    height: 86px;
+    filter: brightness(0) invert(1);
+}
+
+.rule {
+    height: 1px;
+    flex: 1;
+    background: linear-gradient(to right, #ff7a1a, transparent);
+    @media (max-width: 767px) {
+        display: none;
+    }
+}
+
+.container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    margin: 0 auto;
+    max-width: 1440px;
+    padding: 0 1.5rem 2rem;
+    @media (max-width: 1024px) {
+        grid-template-columns: 1fr;
+        grid-auto-flow: dense;
+        height: auto;
+    }
+}
+
+.content {
+    width: 100%;
+    @media (max-width: 1024px) {
+        order: 2;
+    }
+}
+
+.avatarContainer {
+    width: 100%;
+    max-width: 40rem;
+    margin-left: auto;
+    aspect-ratio: 3 / 4;
+    max-height: 680px;
+    overflow: hidden;
+    align-self: start;
+    @media (max-width: 1024px) {
+        order: 1;
+        margin: 0 auto;
+    }
+}
+
+.avatar {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    mask-image: radial-gradient(ellipse 90% 80% at 50% 30%, black 25%, rgba(0, 0, 0, 0.65) 52%, transparent 76%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 30%, black 25%, rgba(0, 0, 0, 0.65) 52%, transparent 76%);
+}
+
+.page :global(h1) {
+    color: #fff;
+}
+
+.footer {
+    width: 100%;
+    padding: 1.25rem 1.5rem;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}

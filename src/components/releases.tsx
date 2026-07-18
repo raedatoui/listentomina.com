@@ -5,6 +5,21 @@ import Release from '@/components/release';
 const releases = [
     {
         cover: {
+            name: 'Carry Over',
+            alt: 'Carry Over',
+            file: 'carry-over.jpg',
+        },
+        links: {
+            spotify: '',
+            appleMusic: '',
+            soundcloud: 'https://soundcloud.com/listentomina/carry-over',
+            youtube: '',
+            deezer: '',
+        },
+        trackId: '2310717002',
+    },
+    {
+        cover: {
             name: 'Never Gonna Survive<br />(Save Me)',
             alt: 'Never Gonna Survive (Save Me)',
             file: 'never-gonna-survive.webp',
