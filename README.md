@@ -1,40 +1,61 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# listentomina.com
 
-## Getting Started
+Promo site for [Mina](https://soundcloud.com/listentomina), a Brooklyn-based dream-pop artist — releases, streaming links, embedded SoundCloud players, and press-style pages for individual singles.
 
-First, run the development server:
+Built with Next.js 16 (Pages Router) as a fully static export — no server runtime — and hosted on Firebase Hosting (site `listentomina`).
+
+## Stack
+
+- Next.js 16 / React 19, `output: 'export'` → static HTML in `out/`
+- TypeScript, plain CSS Modules (no Tailwind)
+- Biome for linting and formatting
+- pnpm, Node >= 22
+
+## Getting started
+
+The `public/` directory (fonts, cover art, images, favicons) is required but **not checked into git** (see `.gitignore`). The assets live as a zip on Google Drive — download it, unzip, and stage the contents as `public/` in this directory before running the dev server or building; the site won't render without it.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Other scripts:
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm build      # static export to out/
+pnpm lint       # Biome lint
+pnpm format     # Biome format, write in place
+pnpm check      # Biome lint + format with auto-fix
+```
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+No environment variables are required.
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+## Site structure
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+| Route | Source | Purpose |
+| --- | --- | --- |
+| `/` | `src/pages/index.tsx` | Homepage — hero-styled, standalone layout |
+| `/index2` | `src/pages/index2.tsx` | Previous homepage layout, kept as a variant |
+| `/saveme` | `src/pages/saveme.tsx` | Standalone press page for "Never Gonna Survive (Save Me)" |
+| `/ride`, `/disobey`, `/wanted` | `src/pages/*.tsx` | Single-release pages built on the shared `Single` component |
+| `/covers` | `src/pages/covers.tsx` | Covers page |
 
-## Learn More
+Two layout modes: `src/pages/_app.tsx` wraps pages in the site shell (logo header + footer) unless the page component sets `standalone = true`, in which case the page owns its entire layout.
 
-To learn more about Next.js, take a look at the following resources:
+## Editing content
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Add a release to the homepage grid:** edit the `releases` array at the top of `src/components/releases.tsx`. Each entry has cover info (image file in `public/images/covers/`), streaming links, and a SoundCloud `trackId` for the embedded player. Set `isPlaylist: true` for EP/playlist embeds and `adSupported: true` to disable autoplay.
+- **Add a single-release page:** copy one of `ride.tsx` / `disobey.tsx` / `wanted.tsx`, swap the `cover` and `links` data, and add a rewrite for it in `firebase.json` (see below).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+## Routing and deployment
 
-## Deploy on Vercel
+Clean URLs are handled by explicit rewrites in `firebase.json` (`/saveme` → `/saveme.html`, etc.), with a catch-all to `/index.html`. **Every new page needs a matching rewrite** — without one, its clean URL silently serves the homepage.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Deploy:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+```bash
+pnpm build && firebase deploy
+```
+
+(`deploy.sh` is stale — it targets a `../firebase` directory that no longer exists.)
