@@ -16,7 +16,7 @@ pnpm, Node >= 22.
 - `pnpm build` — static export to `out/`
 - `pnpm lint` — Biome lint
 - `pnpm check` — Biome lint + format with auto-fix (`pnpm format` for formatting only)
-- Deploy: `pnpm build && firebase deploy` (Firebase Hosting site `listentomina`, serves `out/`). Note: `deploy.sh` is stale — it references a `../firebase` directory that no longer exists.
+- Deploy: `pnpm build && firebase deploy` (Firebase Hosting site `listentomina`, serves `out/`).
 
 No test suite.
 

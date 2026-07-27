@@ -57,5 +57,3 @@ Deploy:
 ```bash
 pnpm build && firebase deploy
 ```
-
-(`deploy.sh` is stale — it targets a `../firebase` directory that no longer exists.)
