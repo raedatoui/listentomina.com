@@ -1,0 +1,107 @@
+.page {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: #0a1216;
+    color: #fff;
+}
+
+/* The same image the shards resolve to, cover-fitted the same way, so the
+   end-of-sequence handoff (shard layer fading out) is invisible.
+   Fixed so it covers the full viewport even though body is capped at 1440px. */
+.bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: #0a1216 url('/images/bg.jpg') center / cover no-repeat;
+}
+
+/* The WebGPU surface floats above the page; its cleared areas are fully
+   transparent. pointer-events: none lets interaction pass through. */
+.gpu {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+}
+
+/* Opaque cover painted from the very first frame, so the page never flashes
+   before the animation's own black opening frame takes over. */
+.preroll {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    background: #000;
+    pointer-events: none;
+    transition: opacity 0.2s linear;
+}
+
+.gone {
+    opacity: 0;
+}
+
+.brand {
+    position: fixed;
+    left: 22px;
+    top: 18px;
+    z-index: 5;
+    font-size: 10px;
+    letter-spacing: 0.28em;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    pointer-events: none;
+}
+
+.brand b {
+    color: #ec7a39;
+}
+
+.hint {
+    position: fixed;
+    left: 22px;
+    bottom: 16px;
+    z-index: 5;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.45);
+    pointer-events: none;
+}
+
+.hint b {
+    color: #ec7a39;
+}
+
+.fallback {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    text-align: center;
+    background: rgba(4, 8, 10, 0.92);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    font-weight: 300;
+    padding: 32px;
+}
+
+.fallback b {
+    color: #ec7a39;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+}
+
+/* lil-gui mounts on document.body (outside this page's tree) */
+:global(.lil-gui) {
+    --width: 264px;
+    z-index: 10;
+    font-family: 'Montserrat', sans-serif;
+}
