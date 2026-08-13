@@ -13,6 +13,13 @@ export const hash = (n: number) => {
     const x = Math.sin(n) * 43758.5453;
     return x - Math.floor(x);
 };
+export function hsb2rgb(h: number, s: number, v: number): [number, number, number] {
+    const s1 = s / 100;
+    const v1 = v / 100;
+    const k = (n: number) => (n + h / 60) % 6;
+    const f = (n: number) => v1 - v1 * s1 * Math.max(0, Math.min(k(n), 4 - k(n), 1));
+    return [f(5), f(3), f(1)];
+}
 
 export interface Placement {
     s: number;
@@ -48,6 +55,7 @@ export interface Seg {
     startT: number;
     dur: number;
     isExt: 0 | 1;
+    col: [number, number, number]; // texture colour at the segment's midpoint
 }
 
 export interface Dot {
@@ -55,6 +63,7 @@ export interface Dot {
     y: number;
     r: number;
     order: number;
+    col: [number, number, number]; // texture colour under the dot's centre
 }
 
 export interface LayoutResult {
@@ -73,12 +82,14 @@ export interface MoveSegOut {
     to: number;
     edge: number;
     exits: boolean;
+    isExt: 0 | 1;
     hStart: number;
     hDur: number;
     tStart: number;
     tDur: number;
     fadeStart: number;
     fadeDur: number;
+    col: [number, number, number];
 }
 
 // a target edge during a move: streaks in from its branch point X
@@ -91,6 +102,7 @@ export interface MoveSegIn {
     hDur: number;
     tStart: number;
     tDur: number;
+    col: [number, number, number];
 }
 
 export interface MovePlan {
@@ -99,6 +111,19 @@ export interface MovePlan {
     dotsA: Dot[];
     dotsB: Dot[];
 }
+
+// texture colour under a point, lifted to a luminous tone: dark art pixels
+// keep their hue but are boosted so nothing colourises into invisibility
+// against the black page; truly hueless near-black (the margin around the
+// artwork, pure black art) falls back to `fallback` — the configured line
+// colour
+const accentColor = (sample: SampleFn, x: number, y: number, fallback: [number, number, number]): [number, number, number] => {
+    const c = sample(x, y);
+    const m = Math.max(c[0], c[1], c[2]);
+    if (m < 0.05) return fallback; // no hue to speak of
+    const boost = Math.max(1, 0.75 / m);
+    return [Math.min(1, c[0] * boost), Math.min(1, c[1] * boost), Math.min(1, c[2] * boost)];
+};
 
 const placeVerts = (W: number, H: number, pos: Placement) => {
     const k = (pos.s * H) / H2;
@@ -121,6 +146,11 @@ const lineKey = (dx: number, dy: number, c: number) => `${Math.round(Math.atan2(
 // past it ("closed"), then flashes in.
 export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectConfig, sample: SampleFn): LayoutResult {
     const { k, ox, oy, P } = placeVerts(W, H, pos);
+    const lineCol = hsb2rgb(cfg.lineH, cfg.lineS, cfg.lineB); // segment fallback off the artwork
+    const segColor = (L: LineGeom, a: number, b: number) => {
+        const mid = (a + b) / 2;
+        return accentColor(sample, L.p0[0] + L.d[0] * mid, L.p0[1] + L.d[1] * mid, lineCol);
+    };
 
     // unique infinite lines through the edges (collinear edges merge into one
     // line whose "logo span" is the union of its segments)
@@ -278,6 +308,7 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
             startT: bStart,
             dur: e.dur,
             isExt: 0,
+            col: segColor(e.L, e.ta, e.tb),
         });
         vT[other] = Math.min(vT[other], bStart + e.dur);
     }
@@ -308,7 +339,7 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
             extCount[av]++;
             const startT = (Number.isFinite(vT[av]) ? vT[av] : 0) + (0.02 + 0.2 * hash(hkey + 1.9)) * stag;
             const dur = (Math.abs(tEnd - anchor) / H) * (0.8 + 0.7 * hash(hkey + 4.4));
-            segs.push({ L, from: anchor, to: tEnd, startT, dur, isExt: 1 });
+            segs.push({ L, from: anchor, to: tEnd, startT, dur, isExt: 1, col: segColor(L, anchor, tEnd) });
             if (side > 0) L.drawnB = tEnd;
             else L.drawnA = tEnd;
         }
@@ -321,13 +352,13 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
         s.dur /= tMax;
         s.L.segsOnLine.push(s);
     }
-    // the three brand dots — positions only; their timing rides the render loop
-    const dots: Dot[] = MARK.DOTS.map((d) => ({
-        x: ox + (d.x - CXm) * k,
-        y: oy + (d.y - CYm) * k,
-        r: MARK.R * k,
-        order: d.order,
-    }));
+    // the three brand dots — positions + their fixed brand colours;
+    // their timing rides the render loop
+    const dots: Dot[] = MARK.DOTS.map((d) => {
+        const x = ox + (d.x - CXm) * k;
+        const y = oy + (d.y - CYm) * k;
+        return { x, y, r: MARK.R * k, order: d.order, col: d.col };
+    });
 
     // earliest arrival (q units) of any drawn segment at param x on line L
     const arrivalAt = (L: Line, x: number) => {
@@ -459,9 +490,26 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
     for (const g of groups.values()) {
         const cx = g.cx / (g.area || 1);
         const cy = g.cy / (g.area || 1);
-        const cols = [sample(cx, cy)];
-        for (const i of g.cells.slice(0, 3)) cols.push(sample(cellInfo[i].cx, cellInfo[i].cy));
-        const col = cols.reduce((a, c) => [a[0] + c[0], a[1] + c[1], a[2] + c[2]], [0, 0, 0]).map((v) => v / cols.length);
+        // area-weighted colour: sample the centroid of every fan triangle of
+        // every sub-cell, so shards straddling image detail (or the art's
+        // edge) resolve from a genuinely representative flat colour
+        let cr = 0;
+        let cg = 0;
+        let cb = 0;
+        let wSum = 0;
+        for (const i of g.cells) {
+            const poly = cellInfo[i].poly;
+            for (let j = 1; j < poly.length - 1; j++) {
+                const tri = [poly[0], poly[j], poly[j + 1]];
+                const w = area(tri);
+                const s = sample((tri[0][0] + tri[1][0] + tri[2][0]) / 3, (tri[0][1] + tri[1][1] + tri[2][1]) / 3);
+                cr += s[0] * w;
+                cg += s[1] * w;
+                cb += s[2] * w;
+                wSum += w;
+            }
+        }
+        const col = wSum > 0 ? [cr / wSum, cg / wSum, cb / wSum] : sample(cx, cy);
         // shard closes when its last still-real (drawn) boundary is fully grown
         let closeQ = 0;
         for (const i of g.cells) {
@@ -493,7 +541,7 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
 
 // ---------- movement geometry ----------
 // lines + per-edge params for an arbitrary placement (no cells/extensions)
-export function logoGeometry(W: number, H: number, pos: Placement) {
+export function logoGeometry(W: number, H: number, pos: Placement, sample: SampleFn) {
     const { k, ox, oy, P } = placeVerts(W, H, pos);
     const lines = new Map<string, LineGeom>();
     const edges: { L: LineGeom; ta: number; tb: number }[] = [];
@@ -518,12 +566,11 @@ export function logoGeometry(W: number, H: number, pos: Placement) {
         }
         edges.push({ L, ta: dx * P[a][0] + dy * P[a][1], tb: dx * P[b][0] + dy * P[b][1] });
     }
-    const dots: Dot[] = MARK.DOTS.map((d) => ({
-        x: ox + (d.x - CXm) * k,
-        y: oy + (d.y - CYm) * k,
-        r: MARK.R * k,
-        order: d.order,
-    }));
+    const dots: Dot[] = MARK.DOTS.map((d) => {
+        const x = ox + (d.x - CXm) * k;
+        const y = oy + (d.y - CYm) * k;
+        return { x, y, r: MARK.R * k, order: d.order, col: d.col };
+    });
     return { edges, dots };
 }
 
@@ -543,8 +590,17 @@ function crossParam(LB: LineGeom, LA: LineGeom, a0: number, a1: number): number 
 // arrive as rays branching off the source logo's segments (seeded at line
 // intersections), while the source segments ray OUT along their own lines,
 // continuing in the direction they originally grew.
-export function buildMovePlan(W: number, H: number, srcSegs: Seg[], srcDots: Dot[], srcCenter: { x: number; y: number }, target: Placement, cfg: EffectConfig): MovePlan {
-    const g = logoGeometry(W, H, target);
+export function buildMovePlan(
+    W: number,
+    H: number,
+    srcSegs: Seg[],
+    srcDots: Dot[],
+    srcCenter: { x: number; y: number },
+    target: Placement,
+    cfg: EffectConfig,
+    sample: SampleFn
+): MovePlan {
+    const g = logoGeometry(W, H, target, sample);
     const pxT = (d: number) => Math.abs(d) / (H * 2); // px distance -> raw time
     const a: MoveSegOut[] = [];
     const b: MoveSegIn[] = [];
@@ -572,12 +628,14 @@ export function buildMovePlan(W: number, H: number, srcSegs: Seg[], srcDots: Dot
             to: sg.to,
             edge,
             exits,
+            isExt: sg.isExt,
             hStart: start,
             hDur,
             tStart: start + 0.25 * hDur,
             tDur: Math.max(1e-4, pxT(edge - sg.from)),
             fadeStart: start,
             fadeDur: Math.max(0.05, cfg.moveFade),
+            col: sg.col, // keeps the colour it grew with
         });
     });
     // target edges arrive as rays seeded at the nearest intersection of their
@@ -602,6 +660,7 @@ export function buildMovePlan(W: number, H: number, srcSegs: Seg[], srcDots: Dot
         const far = near === e.ta ? e.tb : e.ta;
         const start = 0.18 + hash(i * 7.73 + 3.31) * cfg.moveStagger;
         const hDur = Math.max(1e-4, pxT(far - X));
+        const mid = (e.ta + e.tb) / 2;
         b.push({
             L: e.L,
             X,
@@ -611,6 +670,7 @@ export function buildMovePlan(W: number, H: number, srcSegs: Seg[], srcDots: Dot
             hDur,
             tStart: start + 0.3 * hDur,
             tDur: Math.max(1e-4, pxT(near - X)),
+            col: accentColor(sample, e.L.p0[0] + e.L.d[0] * mid, e.L.p0[1] + e.L.d[1] * mid, hsb2rgb(cfg.lineH, cfg.lineS, cfg.lineB)),
         });
     });
     // No new small line may appear once the big logo is gone. Landing exactly

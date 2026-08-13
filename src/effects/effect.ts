@@ -7,9 +7,10 @@
 // page background behind it — leaving the mark, which then "moves" to its
 // docked placement by raying out while the small mark branches in.
 
+import { bindPresetTweens, type PresetChoreo } from '@/effects/choreo';
 import { BASE, type LiveParams } from '@/effects/config';
 import { buildGui } from '@/effects/gui';
-import { buildLayout, buildMovePlan, clamp01, type Dot, type MovePlan, type Placement, type Seg } from '@/effects/layout';
+import { buildLayout, buildMovePlan, clamp01, type Dot, hsb2rgb, type MovePlan, type Placement, type Seg } from '@/effects/layout';
 import { MARK } from '@/effects/mark';
 import { PRESETS } from '@/effects/presets';
 import { DOT_SHADER } from '@/effects/shaders/dot';
@@ -24,14 +25,14 @@ export interface MinaEffect {
     /** resolves once the shard layer is actually painting (lift any pre-roll cover) */
     firstFrame: Promise<void>;
     destroy(): void;
-}
-
-function hsb2rgb(h: number, s: number, v: number): [number, number, number] {
-    const s1 = s / 100;
-    const v1 = v / 100;
-    const k = (n: number) => (n + h / 60) % 6;
-    const f = (n: number) => v1 - v1 * s1 * Math.max(0, Math.min(k(n), 4 - k(n), 1));
-    return [f(5), f(3), f(1)];
+    /** the live parameter object the render loop reads every frame — mutate/tween freely */
+    params: LiveParams;
+    /** fired whenever the reveal (re)starts — autoplay, R key, GUI ▶ (claimed by preset tweens) */
+    onPlay?: () => void;
+    /** fired whenever the dock move actually starts — auto-move, M key, GUI ⇄ (claimed by preset tweens) */
+    onMove?: () => void;
+    /** page-facing sequence events: 'play' (reveal restarted), 'move' (dock started), 'docked' (dock finished) */
+    onPhase?: (phase: 'play' | 'move' | 'docked') => void;
 }
 
 export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = 'default'): Promise<MinaEffect> {
@@ -89,13 +90,15 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             entryPoint: 'vs',
             buffers: [
                 {
-                    arrayStride: 6 * 4,
+                    arrayStride: 10 * 4,
                     stepMode: 'instance',
                     attributes: [
                         { shaderLocation: 0, offset: 0, format: 'float32x2' }, // tail px
                         { shaderLocation: 1, offset: 8, format: 'float32x2' }, // head px
                         { shaderLocation: 2, offset: 16, format: 'float32' }, // alpha mul
                         { shaderLocation: 3, offset: 20, format: 'float32' }, // motion
+                        { shaderLocation: 4, offset: 24, format: 'float32x3' }, // texture colour
+                        { shaderLocation: 5, offset: 36, format: 'float32' }, // ext flag
                     ],
                 },
             ],
@@ -103,8 +106,8 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         fragment: { module: lineModule, entryPoint: 'fs', targets: [{ format: 'rgba16float', blend: blendOver }] },
         primitive: { topology: 'triangle-list' },
     });
-    const lineUBuf = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-    const lineU = new Float32Array(16);
+    const lineUBuf = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const lineU = new Float32Array(20);
     const lineBindGroup = device.createBindGroup({
         layout: linePipeline.getBindGroupLayout(0),
         entries: [{ binding: 0, resource: { buffer: lineUBuf } }],
@@ -116,9 +119,9 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     const glowUs: Float32Array<ArrayBuffer>[] = [];
     const glowBindGroups: GPUBindGroup[] = [];
     for (let i = 0; i < GLOW_MAX; i++) {
-        const buf = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        const buf = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
         glowUBufs.push(buf);
-        glowUs.push(new Float32Array(16));
+        glowUs.push(new Float32Array(20));
         glowBindGroups.push(
             device.createBindGroup({
                 layout: linePipeline.getBindGroupLayout(0),
@@ -128,7 +131,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     }
     // line instances are rebuilt EVERY frame as the rays grow — fixed-size buffer
     const MAX_LINE_INST = 96;
-    const lineData = new Float32Array(MAX_LINE_INST * 6); // tail xy, head xy, alphaMul, motion
+    const lineData = new Float32Array(MAX_LINE_INST * 10); // tail xy, head xy, alphaMul, motion, colour rgb, ext
     const lineBuf = device.createBuffer({
         size: lineData.byteLength,
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
@@ -143,12 +146,13 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             entryPoint: 'vs',
             buffers: [
                 {
-                    arrayStride: 4 * 4,
+                    arrayStride: 7 * 4,
                     stepMode: 'instance',
                     attributes: [
                         { shaderLocation: 0, offset: 0, format: 'float32x2' }, // centre px
                         { shaderLocation: 1, offset: 8, format: 'float32' }, // radius px
                         { shaderLocation: 2, offset: 12, format: 'float32' }, // start (q units)
+                        { shaderLocation: 3, offset: 16, format: 'float32x3' }, // texture colour
                     ],
                 },
             ],
@@ -156,7 +160,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         fragment: { module: dotModule, entryPoint: 'fs', targets: [{ format: 'rgba16float', blend: blendOver }] },
         primitive: { topology: 'triangle-list' },
     });
-    const dotData = new Float32Array(MARK.DOTS.length * 4);
+    const dotData = new Float32Array(MARK.DOTS.length * 7);
     const dotBuf = device.createBuffer({
         size: dotData.byteLength,
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
@@ -182,7 +186,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     const dotPulseBindGroup = mkDotBG(dotPulseUBuf);
     // during a move the source dots shrink while the target dots grow — the
     // source set needs its own instances + reversed radius ramps
-    const dotDataA = new Float32Array(MARK.DOTS.length * 4);
+    const dotDataA = new Float32Array(MARK.DOTS.length * 7);
     const dotBufA = device.createBuffer({
         size: dotDataA.byteLength,
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
@@ -303,14 +307,21 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     // ---------- params ----------
     const params: LiveParams = {
         ...BASE,
-        ...PRESETS[presetName],
+        ...PRESETS[presetName]?.config,
         progress: 0, // transient scrub 0..1
         move: 0, // transient move scrub 0..1
         dotTiming: '', // derived readout (not persisted)
     };
 
+    // the active preset's declarative tweens, rebound on preset switch
+    let choreo: PresetChoreo | null = null;
+    function rebindTweens(name: string) {
+        choreo?.dispose();
+        choreo = bindPresetTweens(api, PRESETS[name]?.tweens, { ...BASE, ...PRESETS[name]?.config });
+    }
+
     let texSource: TextureSource | null = null;
-    let loadedTextureUrl = '';
+    let loadedTexture = ''; // url + fit actually on the GPU
     let texTimer: number | null = null;
     let capturing = false;
     let cellsDirty = true;
@@ -338,13 +349,12 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         const w = canvas.clientWidth;
         const h = canvas.clientHeight;
         try {
-            uploadTexture(await loadTexture(params.textureUrl, w, h));
-            loadedTextureUrl = params.textureUrl;
+            uploadTexture(await loadTexture(params.textureUrl, w, h, params.textureFit));
         } catch (e) {
             console.warn('texture load failed, using fallback:', e);
             uploadTexture(fallbackTexture(w, h));
-            loadedTextureUrl = params.textureUrl;
         } finally {
+            loadedTexture = `${params.textureUrl}|${params.textureFit}`;
             capturing = false;
         }
     }
@@ -411,7 +421,8 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         // their far end; extensions are ALREADY at the screen edge, so the same
         // formula degenerates to their tail following out.
         const srcSegs = layoutSegs.filter((sg) => !(bare && sg.isExt));
-        moveData = buildMovePlan(W, H, srcSegs, layoutDots, srcC, tp, params);
+        const sample = texSource ? texSource.sample : () => [1, 1, 1] as [number, number, number];
+        moveData = buildMovePlan(W, H, srcSegs, layoutDots, srcC, tp, params, sample);
     }
 
     // the full transition: form the big mark, then move it to the target
@@ -428,6 +439,8 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         playing = true;
         autoMoved = false;
         bare = false;
+        api.onPlay?.();
+        api.onPhase?.('play');
     }
     function doMove() {
         if (mode === 'move') return;
@@ -437,6 +450,8 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         params.move = 0;
         mode = 'move';
         playingMove = true;
+        api.onMove?.();
+        api.onPhase?.('move');
     }
     function commitMove() {
         curPos = 1 - curPos;
@@ -447,6 +462,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         params.progress = 1;
         bare = true; // settled: logo alone (extensions left with the move)
         rebuildLayoutNow(); // same placement math -> visually seamless swap
+        api.onPhase?.('docked');
     }
 
     const gui = buildGui(
@@ -474,10 +490,12 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
                 }
                 if (params.move >= 1) commitMove();
             },
-            onPresetApplied: () => {
+            onPresetApplied: (preset) => {
                 cellsDirty = true;
-                if (params.textureUrl !== loadedTextureUrl) void refreshTexture();
+                if (`${params.textureUrl}|${params.textureFit}` !== loadedTexture) void refreshTexture();
+                rebindTweens(preset);
             },
+            paramEdited: (prop, value) => choreo?.setRest(prop, value),
         },
         presetName
     );
@@ -547,7 +565,24 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
 
         const W = canvas.clientWidth;
         const H = canvas.clientHeight;
-        mosaicU.set([W, H, p, mosaicA, params.texScale, growSpan, params.whiteDur * nrm, params.colorDur * nrm, params.texDur * nrm, params.whiteLevel, params.colorSat, params.colorBoost]);
+        // ripple off -> the per-shard zoom starts at 1, so nothing warps
+        const texScale = params.ripple ? params.texScale : 1;
+        mosaicU.set([
+            W,
+            H,
+            p,
+            mosaicA,
+            texScale,
+            growSpan,
+            params.whiteDur * nrm,
+            params.colorDur * nrm,
+            params.texDur * nrm,
+            params.whiteLevel,
+            params.colorSat,
+            params.colorBoost,
+            params.flashTint,
+            params.veil,
+        ]);
         device.queue.writeBuffer(mosaicUBuf, 0, mosaicU);
 
         // build this frame's line segments from the growing network
@@ -556,15 +591,27 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         let motionSum = 0;
         // ta is the TAIL, tb the HEAD — order is preserved (not sorted) so the
         // trail effect knows which way the line is travelling
-        const pushSeg = (L: { p0: [number, number]; d: [number, number] }, ta: number, tb: number, aMul: number, motion: number) => {
+        const pushSeg = (
+            L: { p0: [number, number]; d: [number, number] },
+            ta: number,
+            tb: number,
+            aMul: number,
+            motion: number,
+            col: [number, number, number],
+            ext: number
+        ) => {
             if (Math.abs(tb - ta) < 0.75 || inst >= MAX_LINE_INST || aMul <= 0.003) return;
-            const o = inst * 6;
+            const o = inst * 10;
             lineData[o] = L.p0[0] + L.d[0] * ta;
             lineData[o + 1] = L.p0[1] + L.d[1] * ta;
             lineData[o + 2] = L.p0[0] + L.d[0] * tb;
             lineData[o + 3] = L.p0[1] + L.d[1] * tb;
             lineData[o + 4] = aMul;
             lineData[o + 5] = motion;
+            lineData[o + 6] = col[0];
+            lineData[o + 7] = col[1];
+            lineData[o + 8] = col[2];
+            lineData[o + 9] = ext;
             motionSum += motion;
             inst++;
         };
@@ -580,10 +627,10 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
                 if (s.exits) {
                     const head = s.to + (s.edge - s.to) * clamp01((m - s.hStart) / s.hDur);
                     const tail = s.from + (s.edge - s.from) * clamp01((m - s.tStart) / s.tDur);
-                    pushSeg(s.L, tail, head, 1, 1); // travelling until it leaves the screen
+                    pushSeg(s.L, tail, head, 1, 1, s.col, s.isExt); // travelling until it leaves the screen
                 } else {
                     // fading in place: not moving, so no trail on it
-                    pushSeg(s.L, s.from, s.to, 1 - clamp01((m - s.fadeStart) / s.fadeDur), 0);
+                    pushSeg(s.L, s.from, s.to, 1 - clamp01((m - s.fadeStart) / s.fadeDur), 0, s.col, s.isExt);
                 }
             }
             // …while the target logo's edges streak in from the branch points
@@ -591,7 +638,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
                 const head = s.X + (s.far - s.X) * clamp01((m - s.hStart) / s.hDur);
                 const tail = s.X + (s.near - s.X) * clamp01((m - s.tStart) / s.tDur);
                 const done = Math.max(s.hStart + s.hDur, s.tStart + s.tDur);
-                pushSeg(s.L, tail, head, 1, clamp01((done + fadeM - m) / fadeM));
+                pushSeg(s.L, tail, head, 1, clamp01((done + fadeM - m) / fadeM), s.col, 0);
             }
             if (params.move >= 1 && !playingMove) commitMove();
         } else {
@@ -605,10 +652,10 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
                 if (u <= 0) continue;
                 const head = s.from + (s.to - s.from) * clamp01(u);
                 const motion = clamp01((s.startT + s.dur + fadeQ - qRaw) / fadeQ);
-                pushSeg(s.L, s.from, head, 1, motion);
+                pushSeg(s.L, s.from, head, 1, motion, s.col, s.isExt);
             }
         }
-        if (inst) device.queue.writeBuffer(lineBuf, 0, lineData, 0, inst * 6);
+        if (inst) device.queue.writeBuffer(lineBuf, 0, lineData, 0, inst * 10);
 
         const [lr, lg, lb] = hsb2rgb(params.lineH, params.lineS, params.lineB);
         // Line width is proportional to the logo's scale: `thickness` is the
@@ -623,9 +670,9 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             wf += (wTo - wf) * clamp01(params.move);
         }
         const lw = Math.max(0.8, params.lineWidth * wf);
-        // [viewport, thickness, soft, r,g,b, capScale, tr,tg,tb, alpha, falloff, trail, trailBias]
+        // [viewport, thickness, soft, r,g,b, capScale, tr,tg,tb, alpha, falloff, trail, trailBias, taper, segTint, tailDim]
         const [tr, tg, tb] = hsb2rgb(params.lineH + params.trailHue, params.lineS, params.lineB * params.trailDim);
-        lineU.set([W, H, lw, 0, lr, lg, lb, 1, tr, tg, tb, 1.0, 2, params.trail, params.trailBias, params.taper]);
+        lineU.set([W, H, lw, 0, lr, lg, lb, 1, tr, tg, tb, 1.0, 2, params.trail, params.trailBias, params.taper, params.lineTint, params.trailDim]);
         device.queue.writeBuffer(lineUBuf, 0, lineU);
         // glow: stacked passes, each wider and fainter, sharing the trail shading
         const ga = 0.55 * params.glow;
@@ -650,6 +697,8 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
                 params.trail * 0.75,
                 params.trailBias,
                 params.taper,
+                params.lineTint,
+                1, // glow tail keeps the segment colour; its alpha ramp does the fading
             ]);
             device.queue.writeBuffer(glowUBufs[i], 0, glowUs[i]);
         }
@@ -658,49 +707,42 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         // Move mode: target dots grow late in the move (with pulses) while the
         // source dots shrink away early — both on the move clock m.
         // [viewport, progress, grow, r,g,b, radiusMul, rStart, rEnd, rPow, soft, aStart, aEnd]
+        const putDot = (buf: Float32Array, i: number, d: Dot, startP: number) => {
+            const o = i * 7;
+            buf[o] = d.x;
+            buf[o + 1] = d.y;
+            buf[o + 2] = d.r;
+            buf[o + 3] = startP;
+            buf[o + 4] = d.col[0];
+            buf[o + 5] = d.col[1];
+            buf[o + 6] = d.col[2];
+        };
         if (mode === 'move' && moveData) {
             const m = params.move;
-            moveData.dotsB.forEach((d, i) => {
-                const o = i * 4;
-                dotData[o] = d.x;
-                dotData[o + 1] = d.y;
-                dotData[o + 2] = d.r;
-                dotData[o + 3] = 0.55 + d.order * 0.12;
-            });
+            moveData.dotsB.forEach((d, i) => putDot(dotData, i, d, 0.55 + d.order * 0.12));
             device.queue.writeBuffer(dotBuf, 0, dotData);
-            moveData.dotsA.forEach((d, i) => {
-                const o = i * 4;
-                dotDataA[o] = d.x;
-                dotDataA[o + 1] = d.y;
-                dotDataA[o + 2] = d.r;
-                dotDataA[o + 3] = 0.06 + d.order * 0.1;
-            });
+            moveData.dotsA.forEach((d, i) => putDot(dotDataA, i, d, 0.06 + d.order * 0.1));
             device.queue.writeBuffer(dotBufA, 0, dotDataA);
-            dotU.set([W, H, m, 0.16, lr, lg, lb, params.dotSize, 0, 1, 1, 0, 1, 1]);
+            dotU.set([W, H, m, 0.16, lr, lg, lb, params.dotSize, 0, 1, 1, 0, 1, 1, 0]);
             device.queue.writeBuffer(dotUBuf, 0, dotU);
-            dotGlowU.set([W, H, m, 0.16, lr, lg, lb, params.dotSize * 2.6, 0, 1, 1, 1, ga, ga]);
+            dotGlowU.set([W, H, m, 0.16, lr, lg, lb, params.dotSize * 2.6, 0, 1, 1, 1, ga, ga, 0]);
             device.queue.writeBuffer(dotGlowUBuf, 0, dotGlowU);
-            dotPulseU.set([W, H, m, 0.16, lr, lg, lb, params.dotSize, 0, params.dotPulse, 0.5, 0.5, 1, 0]);
+            dotPulseU.set([W, H, m, 0.16, lr, lg, lb, params.dotSize, 0, params.dotPulse, 0.5, 0.5, 1, 0, 0]);
             device.queue.writeBuffer(dotPulseUBuf, 0, dotPulseU);
-            dotShrinkU.set([W, H, m, 0.14, lr, lg, lb, params.dotSize, 1, 0, 1, 0, 1, 1]);
+            // shrinking source dots were already colourised — stay on their colour
+            dotShrinkU.set([W, H, m, 0.14, lr, lg, lb, params.dotSize, 1, 0, 1, 0, 1, 1, 1]);
             device.queue.writeBuffer(dotShrinkUBuf, 0, dotShrinkU);
-            dotShrinkGlowU.set([W, H, m, 0.14, lr, lg, lb, params.dotSize * 2.6, 1, 0, 1, 1, ga, ga]);
+            dotShrinkGlowU.set([W, H, m, 0.14, lr, lg, lb, params.dotSize * 2.6, 1, 0, 1, 1, ga, ga, 1]);
             device.queue.writeBuffer(dotShrinkGlowUBuf, 0, dotShrinkGlowU);
         } else {
-            layoutDots.forEach((d, i) => {
-                const o = i * 4;
-                dotData[o] = d.x;
-                dotData[o + 1] = d.y;
-                dotData[o + 2] = d.r;
-                dotData[o + 3] = params.dotStart + d.order * params.dotStagger;
-            });
+            layoutDots.forEach((d, i) => putDot(dotData, i, d, params.dotStart + d.order * params.dotStagger));
             if (layoutDots.length) device.queue.writeBuffer(dotBuf, 0, dotData);
             const dotGrowAbs = params.dotGrow; // absolute progress, like the dot clock
-            dotU.set([W, H, p, dotGrowAbs, lr, lg, lb, params.dotSize, 0, 1, 1, 0, 1, 1]);
+            dotU.set([W, H, p, dotGrowAbs, lr, lg, lb, params.dotSize, 0, 1, 1, 0, 1, 1, 0]);
             device.queue.writeBuffer(dotUBuf, 0, dotU);
-            dotGlowU.set([W, H, p, dotGrowAbs, lr, lg, lb, params.dotSize * 2.6, 0, 1, 1, 1, ga, ga]);
+            dotGlowU.set([W, H, p, dotGrowAbs, lr, lg, lb, params.dotSize * 2.6, 0, 1, 1, 1, ga, ga, 0]);
             device.queue.writeBuffer(dotGlowUBuf, 0, dotGlowU);
-            dotPulseU.set([W, H, p, dotGrowAbs, lr, lg, lb, params.dotSize, 0, params.dotPulse, 0.5, 0.5, 1, 0]);
+            dotPulseU.set([W, H, p, dotGrowAbs, lr, lg, lb, params.dotSize, 0, params.dotPulse, 0.5, 0.5, 1, 0, 0]);
             device.queue.writeBuffer(dotPulseUBuf, 0, dotPulseU);
         }
         // readout: when the dot sequence starts and finishes, in seconds
@@ -820,10 +862,11 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     }
     raf = requestAnimationFrame(frame);
 
-    return {
+    const api: MinaEffect = {
         play,
         move: doMove,
         firstFrame,
+        params,
         destroy() {
             destroyed = true;
             cancelAnimationFrame(raf);
@@ -833,8 +876,11 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             removeEventListener('resize', resize);
             removeEventListener('keydown', onKey);
             gui.destroy();
+            choreo?.dispose();
             settleFirst(); // never leave a page waiting on a dead engine
             device.destroy();
         },
     };
+    rebindTweens(presetName);
+    return api;
 }

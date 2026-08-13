@@ -4,6 +4,8 @@
 export interface EffectConfig {
     /** where the shard texture comes from — a static, same-origin image */
     textureUrl: string;
+    /** cover = fill the viewport; square = centred square on black (album art) */
+    textureFit: 'cover' | 'square';
 
     // sequence
     duration: number;
@@ -20,6 +22,10 @@ export interface EffectConfig {
     whiteLevel: number;
     colorSat: number;
     colorBoost: number;
+    /** 0 = white flash, 1 = flash in the shard's own hue */
+    flashTint: number;
+    /** holds back the colour→texture crossfade: 1 = shards never unveil the texture */
+    veil: number;
 
     // dots
     dotSize: number;
@@ -48,12 +54,16 @@ export interface EffectConfig {
 
     // texture
     texScale: number;
+    /** per-shard zoom settle on reveal (the "ripple"); texScale sets its depth */
+    ripple: boolean;
 
     // lines
     lineWidth: number;
     lineH: number;
     lineS: number;
     lineB: number;
+    /** 0 = uniform line colour, 1 = each segment tinted by the texture under it */
+    lineTint: number;
 
     // glow / bloom
     glow: number;
@@ -76,6 +86,7 @@ export interface EffectConfig {
 
 export const BASE: EffectConfig = {
     textureUrl: '/images/bg.jpg',
+    textureFit: 'cover',
     duration: 6.0,
     stagger: 1.05,
     density: 0.85,
@@ -88,6 +99,8 @@ export const BASE: EffectConfig = {
     whiteLevel: 1.0,
     colorSat: 1.15,
     colorBoost: 1.15,
+    flashTint: 0,
+    veil: 0,
     dotSize: 1.0,
     dotPulse: 2.0,
     dotStart: 0.4,
@@ -106,10 +119,12 @@ export const BASE: EffectConfig = {
     logoX: 0.5,
     logoY: 0.5,
     texScale: 1.15,
+    ripple: true,
     lineWidth: 5,
     lineH: 0,
     lineS: 0,
     lineB: 100,
+    lineTint: 0,
     glow: 0.55,
     glowWidth: 4,
     glowLayers: 2,
@@ -134,4 +149,31 @@ export interface LiveParams extends EffectConfig {
     progress: number;
     move: number;
     dotTiming: string;
+}
+
+// numeric-only config keys — the tweenable ones
+export type NumericParam = { [K in keyof EffectConfig]: EffectConfig[K] extends number ? K : never }[keyof EffectConfig];
+
+// A declarative property tween, part of a preset. Timing defaults anchor to
+// the effect's phases — on 'play' it runs across the resolve sweep (rays done
+// -> last shard textured), on 'move' across the whole dock — and can be
+// overridden with literal seconds. The property snaps back to its RESTING
+// value on every replay: the preset value, or whatever the GUI last set it to
+// (GUI edits become the new rest, so tweens follow the panel). `to` is an
+// absolute target; `toScale` is a multiple of the resting value and should be
+// preferred, since it keeps working when the rest is retuned.
+export interface TweenSpec {
+    on: 'play' | 'move';
+    prop: NumericParam;
+    to?: number;
+    toScale?: number;
+    delay?: number;
+    duration?: number;
+    ease?: string;
+}
+
+// a preset: config values + optional choreography over them
+export interface Preset {
+    config: Partial<EffectConfig>;
+    tweens?: TweenSpec[];
 }

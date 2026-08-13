@@ -2,18 +2,53 @@
     position: fixed;
     inset: 0;
     overflow: hidden;
-    background: #0a1216;
+    background: #000;
     color: #fff;
 }
 
-/* The same image the shards resolve to, cover-fitted the same way, so the
-   end-of-sequence handoff (shard layer fading out) is invisible.
+/* The finale artwork: hidden through the whole reveal (the shard layer stays
+   veiled in flat colour and fades over the black page), then slow-fades in
+   as soon as the dock begins (the title follows once the dock completes).
+   The size still MUST match
+   texture.ts's square fit (0.8 × the viewport's short edge) so any unveiled
+   shard pixels (veil < 1) align with it.
    Fixed so it covers the full viewport even though body is capped at 1440px. */
 .bg {
     position: fixed;
     inset: 0;
     z-index: 0;
-    background: #0a1216 url('/images/bg.jpg') center / cover no-repeat;
+    background: #000 url('/images/the ephemeral trail cover.jpg') center no-repeat;
+    background-size: min(80vw, 80vh);
+    opacity: 0;
+    transition: opacity 2.5s ease;
+}
+
+.bgShown {
+    opacity: 1;
+}
+
+/* just below the artwork's bottom edge (50% + half the square's side);
+   slow-fades in once the mark has docked (the engine's 'docked' phase) */
+.title {
+    position: fixed;
+    left: 50%;
+    top: calc(50% + min(40vw, 40vh));
+    transform: translateX(-50%);
+    z-index: 0;
+    margin: clamp(18px, 4vh, 48px) 0 0;
+    font-size: clamp(20px, 3vw, 36px);
+    font-weight: 400;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.92);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 2.5s ease;
+}
+
+.titleShown {
+    opacity: 1;
 }
 
 /* The WebGPU surface floats above the page; its cleared areas are fully
@@ -41,39 +76,6 @@
 
 .gone {
     opacity: 0;
-}
-
-.brand {
-    position: fixed;
-    left: 22px;
-    top: 18px;
-    z-index: 5;
-    font-size: 10px;
-    letter-spacing: 0.28em;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.55);
-    pointer-events: none;
-}
-
-.brand b {
-    color: #ec7a39;
-}
-
-.hint {
-    position: fixed;
-    left: 22px;
-    bottom: 16px;
-    z-index: 5;
-    font-size: 10px;
-    letter-spacing: 0.04em;
-    font-weight: 300;
-    color: rgba(255, 255, 255, 0.45);
-    pointer-events: none;
-}
-
-.hint b {
-    color: #ec7a39;
 }
 
 .fallback {

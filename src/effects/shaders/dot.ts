@@ -7,7 +7,7 @@ struct DU {
   viewport  : vec2<f32>,
   progress  : f32,
   dotGrow   : f32,   // grow duration, in progress units
-  color     : vec3<f32>,
+  color     : vec3<f32>,   // start colour (the line colour, i.e. white)
   radiusMul : f32,   // base radius multiplier
   rStart    : f32,   // radius factor at t=0 (always 0 — nothing exists yet)
   rEnd      : f32,   // radius factor at t=1
@@ -15,6 +15,7 @@ struct DU {
   soft      : f32,   // 0 = crisp disc, 1 = soft glow falloff
   aStart    : f32,
   aEnd      : f32,
+  colFrom   : f32,   // 0 = grow from u.color into the dot's colour; 1 = always the dot's colour
 };
 @group(0) @binding(0) var<uniform> u : DU;
 
@@ -22,12 +23,13 @@ struct VSOut {
   @builtin(position) pos   : vec4<f32>,
   @location(0)       local : vec2<f32>,   // -1..1 across the disc
   @location(1)       a     : f32,
+  @location(2)       col   : vec3<f32>,
 };
 
 @vertex
 fn vs(@builtin(vertex_index) vi: u32,
       @location(0) centre: vec2<f32>, @location(1) r: f32,
-      @location(2) startP: f32) -> VSOut {
+      @location(2) startP: f32, @location(3) col: vec3<f32>) -> VSOut {
   var CORNER = array<vec2<f32>, 6>(
     vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, 1.0),
     vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, 1.0),  vec2<f32>(-1.0, 1.0),
@@ -42,6 +44,8 @@ fn vs(@builtin(vertex_index) vi: u32,
   o.pos = vec4<f32>(p.x / u.viewport.x * 2.0 - 1.0, 1.0 - p.y / u.viewport.y * 2.0, 0.0, 1.0);
   o.local = c;
   o.a = mix(u.aStart, u.aEnd, t);
+  // colourise: white while arriving, the sampled texture colour once grown
+  o.col = mix(u.color, col, max(t, u.colFrom));
   return o;
 }
 
@@ -52,6 +56,6 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   let disc = 1.0 - smoothstep(1.0 - aa, 1.0, d);
   let fall = mix(disc, pow(max(0.0, 1.0 - d), 2.0), u.soft);
   let a = in.a * fall;
-  return vec4<f32>(u.color * a, a); // premultiplied
+  return vec4<f32>(in.col * a, a); // premultiplied
 }
 `;

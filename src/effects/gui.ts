@@ -19,20 +19,29 @@ export interface GuiHooks {
     /** user grabbed the move slider */
     scrubMove(): void;
     /** a preset was applied over params */
-    onPresetApplied(): void;
+    onPresetApplied(preset: string): void;
+    /** the user edited a numeric setting — preset tweens adopt it as the new resting value */
+    paramEdited(prop: keyof EffectConfig, value: number): void;
 }
 
 const literal = (v: EffectConfig[keyof EffectConfig]) => (typeof v === 'string' ? `'${v}'` : String(v));
 
 export function buildGui(params: LiveParams, hooks: GuiHooks, initialPreset: string): GUI {
     const gui = new GUI({ title: 'MINA · wgpu effects' });
+    // panel-wide: every hand edit of a persisted numeric setting re-anchors the
+    // preset's tweens on it (fires for dblclick resets too, not for tweens/code)
+    gui.onChange((e) => {
+        if (typeof e.value === 'number' && SETTINGS_KEYS.includes(e.property as keyof EffectConfig)) {
+            hooks.paramEdited(e.property as keyof EffectConfig, e.value);
+        }
+    });
 
     const state = { preset: initialPreset };
-    const presetDefaults = () => ({ ...BASE, ...PRESETS[state.preset] });
+    const presetDefaults = () => ({ ...BASE, ...PRESETS[state.preset]?.config });
     const actions = {
         copyPreset: () => {
-            const lines = SETTINGS_KEYS.map((key) => `    ${key}: ${literal(params[key])},`);
-            const body = `const preset: Partial<EffectConfig> = {\n${lines.join('\n')}\n};\n`;
+            const lines = SETTINGS_KEYS.map((key) => `        ${key}: ${literal(params[key])},`);
+            const body = `const preset: Preset = {\n    config: {\n${lines.join('\n')}\n    },\n};\n`;
             navigator.clipboard?.writeText(body).catch(() => {});
             console.log(body); // in case clipboard access is blocked
             copyCtrl.name('copied ✓');
@@ -40,8 +49,8 @@ export function buildGui(params: LiveParams, hooks: GuiHooks, initialPreset: str
         },
     };
     gui.add(state, 'preset', Object.keys(PRESETS)).onChange(() => {
-        Object.assign(params, BASE, PRESETS[state.preset]);
-        hooks.onPresetApplied();
+        Object.assign(params, BASE, PRESETS[state.preset]?.config);
+        hooks.onPresetApplied(state.preset);
         gui.controllersRecursive().forEach((c) => c.updateDisplay());
     });
     const copyCtrl = gui.add(actions, 'copyPreset').name('copy preset');
@@ -80,6 +89,8 @@ export function buildGui(params: LiveParams, hooks: GuiHooks, initialPreset: str
     fRev.add(params, 'colorDur', 0.02, 2, 0.01).name('white → colour');
     fRev.add(params, 'texDur', 0.05, 3, 0.01).name('colour → texture');
     fRev.add(params, 'whiteLevel', 0, 1, 0.01).name('flash level');
+    fRev.add(params, 'flashTint', 0, 1, 0.01).name('flash tint');
+    fRev.add(params, 'veil', 0, 1, 0.01).name('texture veil');
     fRev.add(params, 'colorSat', 0, 2, 0.01).name('colour sat');
     fRev.add(params, 'colorBoost', 0.3, 2, 0.01).name('colour bright');
     fRev.add(params, 'hold', 0.02, 1, 0.01).name('handoff');
@@ -93,6 +104,7 @@ export function buildGui(params: LiveParams, hooks: GuiHooks, initialPreset: str
 
     const fLine = gui.addFolder('Lines');
     fLine.add(params, 'lineWidth', 0, 20, 0.5).name('thickness');
+    fLine.add(params, 'lineTint', 0, 1, 0.01).name('texture tint');
     fLine.add(params, 'taper', 0, 1, 0.01).name('motion taper');
     fLine.add(params, 'lineH', 0, 360, 1).name('hue');
     fLine.add(params, 'lineS', 0, 100, 1).name('saturation');
@@ -116,6 +128,7 @@ export function buildGui(params: LiveParams, hooks: GuiHooks, initialPreset: str
     fTrail.add(params, 'trailFade', 0.05, 1.5, 0.05).name('settle fade (s)');
 
     const fTex = gui.addFolder('Texture');
+    fTex.add(params, 'ripple').name('ripple settle');
     fTex.add(params, 'texScale', 0.2, 4, 0.01).name('start scale');
 
     gui.controllersRecursive().forEach((c) => {

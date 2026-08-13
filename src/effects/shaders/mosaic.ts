@@ -11,9 +11,12 @@ struct U {
   whiteDur   : f32,   // stage 1: black -> white flash (fastest)
   colorDur   : f32,   // stage 2: white -> sampled solid colour
   texDur     : f32,   // stage 3: solid colour -> site texture (zoom settles here)
-  whiteLevel : f32,   // how bright/white the flash is
+  whiteLevel : f32,   // how bright the flash is
   colorSat   : f32,   // saturation of the solid-colour stage
   colorBoost : f32,   // brightness of the solid-colour stage
+  flashTint  : f32,   // 0 = white flash, 1 = flash in the shard's own hue
+  veil       : f32,   // holds back the colour->texture crossfade: 1 = the
+                      // shards stay flat colour and never unveil the texture
 };
 @group(0) @binding(0) var<uniform> u   : U;
 @group(0) @binding(1) var          samp: sampler;
@@ -48,10 +51,15 @@ fn vs(@location(0) p: vec2<f32>, @location(1) uv: vec2<f32>,
   let luma = dot(col, vec3<f32>(0.2126, 0.7152, 0.0722));
   let solid = clamp(mix(vec3<f32>(luma), col, u.colorSat) * u.colorBoost,
                     vec3<f32>(0.0), vec3<f32>(1.0));
-  var c = mix(vec3<f32>(0.0), vec3<f32>(u.whiteLevel), tw); // black -> white
-  c = mix(c, solid, tc);                                    // white -> colour
+  // flash colour: white, or the shard's hue lifted to full luminance
+  let mx = max(col.r, max(col.g, col.b));
+  var hue = vec3<f32>(1.0);
+  if (mx > 0.03) { hue = col / mx; }
+  let flash = mix(vec3<f32>(1.0), hue, u.flashTint) * u.whiteLevel;
+  var c = mix(vec3<f32>(0.0), flash, tw);                   // black -> flash
+  c = mix(c, solid, tc);                                    // flash -> colour
   o.col = c;
-  o.t = tt;                                                 // colour -> texture
+  o.t = tt * (1.0 - u.veil);                                // colour -> texture
   return o;
 }
 

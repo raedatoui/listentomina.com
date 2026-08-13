@@ -29,6 +29,10 @@
                 "destination": "/index2.html"
             },
             {
+                "source": "effects",
+                "destination": "/effects.html"
+            },
+            {
                 "source": "**",
                 "destination": "/index.html"
             }

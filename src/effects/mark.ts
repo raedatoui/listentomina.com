@@ -6,6 +6,7 @@ export interface MarkDot {
     x: number;
     y: number;
     order: number;
+    col: [number, number, number];
 }
 
 export const MARK = {
@@ -39,10 +40,12 @@ export const MARK = {
     ] as ReadonlyArray<readonly [number, number, number]>,
     // the three dots of the brand SVG (exact positions/radius from the mark).
     // `order` is their arrival sequence as the lines exit: middle, top, bottom.
+    // `col` is the fixed colour each dot grows into: yellow, blue, white
+    // reading top to bottom.
     DOTS: [
-        { x: 138.5, y: 48.31, order: 1 }, // above the apex — second
-        { x: 138.5, y: 164.92, order: 0 }, // inside the upper box — first
-        { x: 138.5, y: 479.73, order: 2 }, // below the bottom tip — last
+        { x: 138.5, y: 48.31, order: 1, col: [1, 0.8, 0.2] }, // above the apex — second, yellow
+        { x: 138.5, y: 164.92, order: 0, col: [0.35, 0.45, 1] }, // inside the upper box — first, blue
+        { x: 138.5, y: 479.73, order: 2, col: [1, 1, 1] }, // below the bottom tip — last, white
     ] as readonly MarkDot[],
     R: 7.38,
 };

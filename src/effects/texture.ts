@@ -60,12 +60,22 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     return p;
 }
 
-export async function loadTexture(url: string, viewW: number, viewH: number): Promise<TextureSource> {
+export async function loadTexture(url: string, viewW: number, viewH: number, fit: 'cover' | 'square' = 'cover'): Promise<TextureSource> {
     const img = await loadImage(url);
     return makeSource((g, w, h) => {
-        g.fillStyle = '#0a1216';
-        g.fillRect(0, 0, w, h);
-        drawCover(g, img, w, h);
+        if (fit === 'square') {
+            // centred square on black (album art), inset for breathing room —
+            // MUST match the page CSS behind the canvas or the handoff jumps
+            // (Effects.module.css .bg: background-size min(80vw, 80vh))
+            g.fillStyle = '#000';
+            g.fillRect(0, 0, w, h);
+            const side = Math.min(w, h) * 0.8;
+            g.drawImage(img, (w - side) / 2, (h - side) / 2, side, side);
+        } else {
+            g.fillStyle = '#0a1216';
+            g.fillRect(0, 0, w, h);
+            drawCover(g, img, w, h);
+        }
     }, viewW, viewH);
 }
 
