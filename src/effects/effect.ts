@@ -396,6 +396,10 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     let mosaicVertCount = 0;
     let layoutSegs: Seg[] = []; // growing segments, consumed per-frame by the renderer
     let layoutDots: Dot[] = []; // brand dot placements (timing lives in the render loop)
+    // the artwork's palette: mark-edge colours sampled while the mark was big
+    // and centred over the cover; the docked mark's colour flow cycles these
+    let markPalette: [number, number, number][] = [];
+    let dockedAt = 0; // frame-clock time when the dock completed (eases the flow in)
 
     const primaryPlacement = (): Placement => ({ s: params.logoScale, x: params.logoX, y: params.logoY });
     const targetPlacement = (): Placement => ({ s: params.logoScale2, x: params.logoX2, y: params.logoY2 });
@@ -411,6 +415,9 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         mosaicVertCount = res.vertCount;
         layoutSegs = res.segs;
         layoutDots = res.dots;
+        // keep the palette from the PRIMARY placement: the docked rebuild
+        // samples over black (all-white fallback), which is no palette at all
+        if (curPos === 0) markPalette = res.segs.filter((s) => !s.isExt).map((s) => s.col);
         cellsDirty = false;
     }
 
@@ -465,6 +472,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         // finishes on its own clock (snapping it to 1 here would pop the
         // remaining shard layer off)
         bare = true; // settled: logo alone (extensions left with the move)
+        dockedAt = performance.now(); // starts the docked colour flow's ease-in
         rebuildLayoutNow(); // same placement math -> visually seamless swap
         api.onPhase?.('docked');
     }
@@ -655,13 +663,36 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             // ends, which would freeze the last finishers' trails on forever
             const qRaw = p / growSpan;
             const fadeQ = Math.max(1e-4, params.trailFade / Math.max(0.1, params.duration * growSpan));
-            for (const s of layoutSegs) {
+            // Docked colour flow: the artwork's sampled palette washes through
+            // the mark's segments in constant motion — the whole palette is
+            // spread across the mark and slides along it, eased in over the
+            // first moments after landing. FLOW_SPEED is palette entries/sec.
+            const n = markPalette.length;
+            const flow = bare && n > 1 ? clamp01((now - dockedAt) / 1200) : 0;
+            const FLOW_SPEED = 1.5;
+            const ft = (now / 1000) * FLOW_SPEED;
+            const segCount = Math.max(1, layoutSegs.length);
+            for (let i = 0; i < layoutSegs.length; i++) {
+                const s = layoutSegs[i];
                 if (bare && s.isExt) continue; // post-move: the mark alone
                 const u = (q - s.startT) / s.dur;
                 if (u <= 0) continue;
                 const head = s.from + (s.to - s.from) * clamp01(u);
                 const motion = clamp01((s.startT + s.dur + fadeQ - qRaw) / fadeQ);
-                pushSeg(s.L, s.from, head, 1, motion, s.col, s.isExt);
+                let col = s.col;
+                if (flow > 0) {
+                    const ph = (ft + (i / segCount) * n) % n;
+                    const j = Math.floor(ph);
+                    const f = ph - j;
+                    const a = markPalette[j % n];
+                    const b = markPalette[(j + 1) % n];
+                    col = [
+                        col[0] + (a[0] + (b[0] - a[0]) * f - col[0]) * flow,
+                        col[1] + (a[1] + (b[1] - a[1]) * f - col[1]) * flow,
+                        col[2] + (a[2] + (b[2] - a[2]) * f - col[2]) * flow,
+                    ];
+                }
+                pushSeg(s.L, s.from, head, 1, motion, col, s.isExt);
             }
         }
         if (inst) device.queue.writeBuffer(lineBuf, 0, lineData, 0, inst * 10);
