@@ -20,11 +20,51 @@
     background: #000 url('/images/the ephemeral trail cover.jpg') center no-repeat;
     background-size: min(80vw, 80vh);
     opacity: 0;
-    transition: opacity 2.5s ease;
+    /* center-out reveal: a soft-edged radial mask expands from the viewport
+       centre (the same origin the lines ray out from), so the artwork reads
+       as pushing the mark away. The scale must end large enough that the
+       mask's solid core covers the corners. */
+    -webkit-mask: radial-gradient(circle, #000 40%, transparent 70%) center / 0% 0% no-repeat;
+    mask: radial-gradient(circle, #000 40%, transparent 70%) center / 0% 0% no-repeat;
+    transition:
+        opacity 1s ease,
+        -webkit-mask-size 2.5s ease,
+        mask-size 2.5s ease;
 }
 
 .bgShown {
     opacity: 1;
+    -webkit-mask-size: 350% 350%;
+    mask-size: 350% 350%;
+}
+
+/* The texture fades from white: a white square sits over the artwork INSIDE
+   the masked element (so it is only ever seen where the bloom has reached)
+   and dissolves as the reveal proceeds — the frontier arrives hot and cools
+   into the image. Sized to the artwork square (same min(80vw, 80vh) as the
+   background above). */
+.bgVeil {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: min(80vw, 80vh);
+    height: min(80vw, 80vh);
+    transform: translate(-50%, -50%);
+    background: #fff;
+    /* additive, matching the engine's bloom composite (premultiplied add):
+       the image emerges blown-out and cools as the white burns off, instead
+       of the milky normal-blend mix. `screen` is the fallback where
+       plus-lighter is unsupported. The blur feathers the square's edges so
+       the overexposure halates past the artwork like the line glow does. */
+    mix-blend-mode: screen;
+    mix-blend-mode: plus-lighter;
+    filter: blur(14px);
+    opacity: 1;
+    transition: opacity 2.5s ease;
+}
+
+.bgShown .bgVeil {
+    opacity: 0;
 }
 
 /* just below the artwork's bottom edge (50% + half the square's side);

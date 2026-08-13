@@ -131,6 +131,8 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     }
     // line instances are rebuilt EVERY frame as the rays grow — fixed-size buffer
     const MAX_LINE_INST = 96;
+    // seconds for the bloom's motion-energy signal to settle (low-pass time constant)
+    const BLOOM_ENERGY_TAU = 0.95;
     const lineData = new Float32Array(MAX_LINE_INST * 10); // tail xy, head xy, alphaMul, motion, colour rgb, ext
     const lineBuf = device.createBuffer({
         size: lineData.byteLength,
@@ -388,7 +390,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     let playingMove = false;
     let autoMoved = false;
     let bare = false; // post-move: logo only, no extensions
-    let moveTimer: number | null = null;
+    let energySmooth = 0; // low-passed motion energy feeding the bloom composite
 
     let mosaicVBuf: GPUBuffer | null = null;
     let mosaicVertCount = 0;
@@ -444,8 +446,8 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     }
     function doMove() {
         if (mode === 'move') return;
-        params.progress = 1;
-        playing = false; // move happens over the settled page
+        // the reveal clock keeps running: the handoff fade (mosaicA, driven by
+        // progress) overlaps the dock instead of being forced to complete first
         startMovePlan();
         params.move = 0;
         mode = 'move';
@@ -459,7 +461,9 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         moveData = null;
         playingMove = false;
         params.move = 0;
-        params.progress = 1;
+        // progress is left alone: if the handoff fade is still running it
+        // finishes on its own clock (snapping it to 1 here would pop the
+        // remaining shard layer off)
         bare = true; // settled: logo alone (extensions left with the move)
         rebuildLayoutNow(); // same placement math -> visually seamless swap
         api.onPhase?.('docked');
@@ -542,14 +546,6 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             if (params.progress >= 1) playing = false;
         }
 
-        // auto-move: once the reveal has fully settled, glide to the other position
-        if (mode === 'main' && params.autoMove && started && !autoMoved && params.progress >= 1) {
-            autoMoved = true;
-            moveTimer = window.setTimeout(() => {
-                if (mode === 'main') doMove();
-            }, params.moveDelay * 1000);
-        }
-
         // Derived timeline. Everything is expressed in "growth units" (the ray
         // growth phase = 1) and then normalised into progress space. Phases:
         // grow -> shards resolve -> handoff fade -> full formation over the
@@ -562,6 +558,16 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         const handoffAt = (1 + texUnits) * nrm; // last shard is fully textured
         const holdSpan = Math.max(1e-4, params.hold * nrm);
         const mosaicA = 1 - clamp01((p - handoffAt) / holdSpan);
+
+        // auto-move: the dock starts on the reveal clock itself, moveDelay
+        // seconds after the last shard is fully textured — the same instant
+        // the handoff fade (and the page artwork fade behind it) begins, so
+        // the two can never drift apart
+        const moveAt = Math.min(1, handoffAt + params.moveDelay / Math.max(0.1, params.duration));
+        if (mode === 'main' && params.autoMove && started && !autoMoved && p >= moveAt) {
+            autoMoved = true;
+            doMove();
+        }
 
         const W = canvas.clientWidth;
         const H = canvas.clientHeight;
@@ -750,8 +756,14 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         const info = `${(params.dotStart * params.duration).toFixed(2)}s → ${(dotEnd * params.duration).toFixed(2)}s${dotEnd > 1 ? '  ⚠ past end' : ''}`;
         if (params.dotTiming !== info) params.dotTiming = info;
 
-        // bloom strength swells with how much of the system is moving right now
-        const energy = inst ? motionSum / inst : 0;
+        // bloom strength swells with how much of the system is moving right now.
+        // The raw average is a step function at mode switches (the dock claims
+        // every segment at once, snapping it 0 -> 1 in a frame — with
+        // bloomIdle > 1 that reads as the glow cutting out), so it is low-pass
+        // filtered before it reaches the composite.
+        const energyRaw = inst ? motionSum / inst : 0;
+        energySmooth += (energyRaw - energySmooth) * (1 - Math.exp(-dt / BLOOM_ENERGY_TAU));
+        const energy = energySmooth;
         const bloomOn = params.bloom > 0.01;
         if (bloomOn) {
             device.queue.writeBuffer(blurHU, 0, new Float32Array([params.bloomRadius / bloomHalfW, 0]));
@@ -872,7 +884,6 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             cancelAnimationFrame(raf);
             clearTimeout(firstSafety);
             if (texTimer !== null) clearTimeout(texTimer);
-            if (moveTimer !== null) clearTimeout(moveTimer);
             removeEventListener('resize', resize);
             removeEventListener('keydown', onKey);
             gui.destroy();

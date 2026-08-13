@@ -36,7 +36,7 @@ export const ephemeral: Preset = {
         logoY2: 0.18,
         moveDur: 0.9,
         moveStagger: 0.52,
-        moveDelay: 0.2,
+        moveDelay: 0, // dock starts the instant the handoff / artwork fade begins
         moveFade: 0.7,
         newLinesBy: 1,
         autoMove: true,

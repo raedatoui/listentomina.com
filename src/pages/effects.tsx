@@ -29,12 +29,15 @@ export default function Effects() {
                     return;
                 }
                 effect = e;
-                // sticky: once shown, the artwork and title stay — during replays
-                // the opaque shard layer covers them anyway, so hiding them here
-                // only causes spurious fade-outs. The artwork starts fading the
-                // moment the dock begins; the title waits for it to finish.
+                // The artwork starts its bloom the moment the dock begins; the
+                // title waits for the dock to finish and stays sticky. The
+                // artwork re-arms on every replay — the reset happens under the
+                // opaque shard layer (mosaic is fully solid at progress 0), so
+                // its reverse transition is never seen and the centre-out
+                // reveal plays again at the next handoff.
                 e.onPhase = (phase) => {
                     if (disposed) return;
+                    if (phase === 'play') setShowBg(false);
                     if (phase === 'move' || phase === 'docked') setShowBg(true);
                     if (phase === 'docked') setShowTitle(true);
                 };
@@ -63,7 +66,9 @@ export default function Effects() {
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
             </Head>
             <main className={`${montserrat.className} ${styles.page}`}>
-                <div className={`${styles.bg} ${showBg ? styles.bgShown : ''}`} />
+                <div className={`${styles.bg} ${showBg ? styles.bgShown : ''}`}>
+                    <div className={styles.bgVeil} />
+                </div>
                 <h1 className={`${lovelo.className} ${styles.title} ${showTitle ? styles.titleShown : ''}`}>The Ephemeral Trail</h1>
                 <canvas ref={canvasRef} className={styles.gpu} />
                 <div className={`${styles.preroll} ${ready ? styles.gone : ''}`} />
