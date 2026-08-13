@@ -44,6 +44,17 @@ function drawCover(g: CanvasRenderingContext2D, img: HTMLImageElement, w: number
     g.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
 }
 
+// Side of the centred artwork square for a given viewport. Landscape: 0.8 ×
+// the short edge. Portrait: a HEIGHT percentage governs (with a width cap) so
+// squarish tablets keep real bands above (docked mark) and below (title +
+// store links) instead of the square swallowing the viewport.
+// The page CSS (--art-side in Effects.module.css) MUST express this same
+// formula, or the shard colours and the reveal drift from where the artwork
+// actually lands.
+export function artSide(w: number, h: number): number {
+    return h > w ? Math.min(0.85 * w, 0.58 * h) : 0.8 * Math.min(w, h);
+}
+
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 
 function loadImage(url: string): Promise<HTMLImageElement> {
@@ -66,10 +77,10 @@ export async function loadTexture(url: string, viewW: number, viewH: number, fit
         if (fit === 'square') {
             // centred square on black (album art), inset for breathing room —
             // MUST match the page CSS behind the canvas or the handoff jumps
-            // (Effects.module.css .bg: background-size min(80vw, 80vh))
+            // (Effects.module.css: --art-side)
             g.fillStyle = '#000';
             g.fillRect(0, 0, w, h);
-            const side = Math.min(w, h) * 0.8;
+            const side = artSide(w, h);
             g.drawImage(img, (w - side) / 2, (h - side) / 2, side, side);
         } else {
             g.fillStyle = '#0a1216';

@@ -35,7 +35,7 @@ export interface MinaEffect {
     onPhase?: (phase: 'play' | 'move' | 'docked') => void;
 }
 
-export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = 'default'): Promise<MinaEffect> {
+export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = 'default', withGui = true): Promise<MinaEffect> {
     if (!navigator.gpu) throw new Error('WebGPU unavailable');
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) throw new Error('WebGPU unavailable');
@@ -469,46 +469,49 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         api.onPhase?.('docked');
     }
 
-    const gui = buildGui(
-        params,
-        {
-            play,
-            doMove,
-            invalidateCells: () => {
-                cellsDirty = true;
-            },
-            // live re-place when docked at the target
-            invalidateTarget: () => {
-                if (curPos === 1) cellsDirty = true;
-            },
-            stopPlaying: () => {
-                playing = false;
-            },
-            scrubMove: () => {
-                playingMove = false;
-                if (mode !== 'move') {
-                    params.progress = 1;
-                    playing = false;
-                    startMovePlan();
-                    mode = 'move';
-                }
-                if (params.move >= 1) commitMove();
-            },
-            onPresetApplied: (preset) => {
-                cellsDirty = true;
-                if (`${params.textureUrl}|${params.textureFit}` !== loadedTexture) void refreshTexture();
-                rebindTweens(preset);
-            },
-            paramEdited: (prop, value) => choreo?.setRest(prop, value),
-        },
-        presetName
-    );
+    // the lil-gui tuning panel is opt-in (production builds ship without it)
+    const gui = !withGui
+        ? null
+        : buildGui(
+              params,
+              {
+                  play,
+                  doMove,
+                  invalidateCells: () => {
+                      cellsDirty = true;
+                  },
+                  // live re-place when docked at the target
+                  invalidateTarget: () => {
+                      if (curPos === 1) cellsDirty = true;
+                  },
+                  stopPlaying: () => {
+                      playing = false;
+                  },
+                  scrubMove: () => {
+                      playingMove = false;
+                      if (mode !== 'move') {
+                          params.progress = 1;
+                          playing = false;
+                          startMovePlan();
+                          mode = 'move';
+                      }
+                      if (params.move >= 1) commitMove();
+                  },
+                  onPresetApplied: (preset) => {
+                      cellsDirty = true;
+                      if (`${params.textureUrl}|${params.textureFit}` !== loadedTexture) void refreshTexture();
+                      rebindTweens(preset);
+                  },
+                  paramEdited: (prop, value) => choreo?.setRest(prop, value),
+              },
+              presetName
+          );
 
     const onKey = (e: KeyboardEvent) => {
         const k = e.key.toLowerCase();
         if (k === 'r') play();
         if (k === 'm') doMove();
-        if (k === 'h') gui.show(gui._hidden);
+        if (k === 'h' && gui) gui.show(gui._hidden);
     };
     addEventListener('keydown', onKey);
 
@@ -886,7 +889,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             if (texTimer !== null) clearTimeout(texTimer);
             removeEventListener('resize', resize);
             removeEventListener('keydown', onKey);
-            gui.destroy();
+            gui?.destroy();
             choreo?.dispose();
             settleFirst(); // never leave a page waiting on a dead engine
             device.destroy();

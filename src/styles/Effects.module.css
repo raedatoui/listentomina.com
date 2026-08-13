@@ -4,6 +4,17 @@
     overflow: hidden;
     background: #000;
     color: #fff;
+    /* side of the artwork square — the single source of truth for the card,
+       the title anchor and the store links. texture.ts's artSide() MUST
+       express the same formula. Portrait sizes by viewport height so
+       squarish tablets keep bands above (mark) and below (title + links). */
+    --art-side: min(80vw, 80vh);
+}
+
+@media (orientation: portrait) {
+    .page {
+        --art-side: min(85vw, 58vh);
+    }
 }
 
 /* The finale artwork: hidden through the whole reveal (the shard layer stays
@@ -17,39 +28,86 @@
     position: fixed;
     inset: 0;
     z-index: 0;
-    background: #000 url('/images/the ephemeral trail cover.jpg') center no-repeat;
-    background-size: min(80vw, 80vh);
-    opacity: 0;
-    /* center-out reveal: a soft-edged radial mask expands from the viewport
+    background: #000;
+    /* Everything below is a RESTING value — GSAP (effects.tsx) owns the
+       animation now, tweening these same properties inline: no CSS
+       transitions here.
+       Center-out reveal: a soft-edged radial mask expands from the viewport
        centre (the same origin the lines ray out from), so the artwork reads
-       as pushing the mark away. The scale must end large enough that the
-       mask's solid core covers the corners. */
+       as pushing the mark away. The tweened end scale (350%) is large enough
+       that the mask's solid core covers the corners. */
+    opacity: 0;
     -webkit-mask: radial-gradient(circle, #000 40%, transparent 70%) center / 0% 0% no-repeat;
     mask: radial-gradient(circle, #000 40%, transparent 70%) center / 0% 0% no-repeat;
-    transition:
-        opacity 1s ease,
-        -webkit-mask-size 2.5s ease,
-        mask-size 2.5s ease;
+    perspective: 1400px; /* depth for the card flip below */
 }
 
-.bgShown {
-    opacity: 1;
-    -webkit-mask-size: 350% 350%;
-    mask-size: 350% 350%;
+/* The artwork square as a two-faced 3D card: the cover art on the front, the
+   SoundCloud player on the back; after the bloom, GSAP flips it (rotationY
+   0 -> 180). Sized by --art-side, matching texture.ts's square fit so the
+   shard layer still hands off seamlessly. */
+.card {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: var(--art-side);
+    height: var(--art-side);
+    transform: translate(-50%, -50%);
+    transform-style: preserve-3d;
+}
+
+.cardFace {
+    position: absolute;
+    inset: 0;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+}
+
+.cardFront {
+    background: url('/images/the ephemeral trail cover.jpg') center / cover no-repeat;
+}
+
+/* pre-rotated so it lands where the front was; flex column so the player
+   fills the square above the credit line */
+.cardBack {
+    transform: rotateY(180deg);
+    background: #000;
+    display: flex;
+    flex-direction: column;
+}
+
+.scPlayer {
+    flex: 1;
+    width: 100%;
+    border: 0;
+}
+
+/* SoundCloud's own credit line, ported from the embed snippet */
+.scCredit {
+    padding-top: 6px;
+    font-size: 10px;
+    color: #ccc;
+    line-break: anywhere;
+    word-break: normal;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: Interstate, 'Lucida Grande', 'Lucida Sans Unicode', 'Lucida Sans', Garuda, Verdana, Tahoma, sans-serif;
+    font-weight: 100;
+}
+
+.scCredit a {
+    color: #ccc;
+    text-decoration: none;
 }
 
 /* The texture fades from white: a white square sits over the artwork INSIDE
    the masked element (so it is only ever seen where the bloom has reached)
    and dissolves as the reveal proceeds — the frontier arrives hot and cools
-   into the image. Sized to the artwork square (same min(80vw, 80vh) as the
-   background above). */
+   into the image. Fills the card's front face; GSAP tweens the opacity. */
 .bgVeil {
     position: absolute;
-    left: 50%;
-    top: 50%;
-    width: min(80vw, 80vh);
-    height: min(80vw, 80vh);
-    transform: translate(-50%, -50%);
+    inset: 0;
     background: #fff;
     /* additive, matching the engine's bloom composite (premultiplied add):
        the image emerges blown-out and cools as the white burns off, instead
@@ -60,11 +118,6 @@
     mix-blend-mode: plus-lighter;
     filter: blur(14px);
     opacity: 1;
-    transition: opacity 2.5s ease;
-}
-
-.bgShown .bgVeil {
-    opacity: 0;
 }
 
 /* just below the artwork's bottom edge (50% + half the square's side);
@@ -72,7 +125,7 @@
 .title {
     position: fixed;
     left: 50%;
-    top: calc(50% + min(40vw, 40vh));
+    top: calc(50% + var(--art-side) / 2);
     transform: translateX(-50%);
     z-index: 0;
     margin: clamp(18px, 4vh, 48px) 0 0;
@@ -89,6 +142,53 @@
 
 .titleShown {
     opacity: 1;
+}
+
+/* The five store links (the homepage Listen section's set): pinned top-right
+   on desktop/landscape, centred below the title on portrait. They sit under
+   the canvas like the title (clicks pass through — the canvas ignores
+   pointer events) and share its slow fade-in once the mark has docked. */
+.stores {
+    position: fixed;
+    top: 20px;
+    right: 22px;
+    z-index: 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    opacity: 0;
+    transition: opacity 2.5s ease;
+}
+
+.storesShown {
+    opacity: 1;
+}
+
+.storeIcon {
+    width: auto;
+    height: 28px;
+    transition:
+        transform 0.18s ease,
+        filter 0.18s ease;
+}
+
+.storeIcon:hover {
+    transform: translateY(-2px) scale(1.06);
+    filter: brightness(1.12) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.45));
+}
+
+@media (orientation: portrait) {
+    .stores {
+        top: calc(50% + var(--art-side) / 2 + clamp(70px, 12vh, 120px));
+        right: auto;
+        left: 50%;
+        transform: translateX(-50%);
+        gap: 14px;
+    }
+
+    .storeIcon {
+        height: 24px;
+    }
 }
 
 /* The WebGPU surface floats above the page; its cleared areas are fully
