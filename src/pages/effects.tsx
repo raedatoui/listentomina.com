@@ -63,7 +63,9 @@ function loadWidget(iframe: HTMLIFrameElement): Promise<SCWidget> {
     });
 }
 
-export default function Effects() {
+// `withKeys` arms the engine's R / M / H shortcuts — on at /effects (tuning),
+// off at the homepage, which renders this same component (see index.tsx)
+export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const bgRef = useRef<HTMLDivElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
@@ -93,7 +95,7 @@ export default function Effects() {
         // dynamic imports keep the WebGPU engine (and lil-gui/gsap) out of the build-time render
         Promise.all([import('gsap'), import('@/effects/effect')])
             .then(([{ gsap }, m]) =>
-                m.createMinaEffect(canvas, 'ephemeral', SHOW_GUI).then((e) => {
+                m.createMinaEffect(canvas, 'ephemeral', SHOW_GUI, withKeys).then((e) => {
                     if (disposed) {
                         e.destroy();
                         return;
@@ -180,7 +182,7 @@ export default function Effects() {
             unplaceDock?.();
             effect?.destroy();
         };
-    }, []);
+    }, [withKeys]);
 
     return (
         <>
