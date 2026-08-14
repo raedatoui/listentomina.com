@@ -1,7 +1,9 @@
 import { Montserrat } from 'next/font/google';
 import Head from 'next/head';
 import { useEffect, useRef, useState } from 'react';
+import type { ShaderMode } from '@/effects/config';
 import type { MinaEffect } from '@/effects/effect';
+import { applyLoopMode, LOOP_MODES } from '@/effects/loopModes';
 import styles from '@/styles/Loop.module.css';
 
 const montserrat = Montserrat({ subsets: ['latin'], weight: ['300', '700'] });
@@ -17,17 +19,60 @@ const PEAK = 1.0; // hold at full draw: motion energy decays, so bloomIdle > 1 s
 const UNDRAW = 1.8; // lines retract, progress 1 -> 0
 const DARK = 0.5; // black beat before the next cycle
 
+// loose handles for the dynamically imported gsap — the same spirit as the old
+// `{ kill(): void }` timeline ref, so no top-level gsap import creeps in
+interface LoopTimeline {
+    to(target: object, vars: object): LoopTimeline;
+    kill(): void;
+}
+interface Gsap {
+    timeline(vars: object): LoopTimeline;
+    killTweensOf(target: object): void;
+}
+
+// The endless breath. `progress` is safe to own — autoplay is off, so the
+// engine's clock never writes it. At the peak, progress rests at 1 while the
+// width breathes once and the bloom swells on its own as the low-passed motion
+// energy settles. peakLineWidth is the yoyo's absolute target (6 = the legacy value).
+const buildTimeline = (gsap: Gsap, effect: MinaEffect, peakLineWidth: number) =>
+    gsap
+        .timeline({ repeat: -1, repeatDelay: DARK, delay: 0.4 })
+        .to(effect.params, { progress: 1, duration: DRAW, ease: 'sine.inOut' })
+        .to(effect.params, { lineWidth: peakLineWidth, duration: PEAK / 2, ease: 'sine.inOut', yoyo: true, repeat: 1 })
+        .to(effect.params, { progress: 0, duration: UNDRAW, ease: 'sine.inOut' });
+
 export default function Loop() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [ready, setReady] = useState(false);
     const [unsupported, setUnsupported] = useState(false);
+    const [modeId, setModeId] = useState<ShaderMode>('lines');
+    const [chipsIdle, setChipsIdle] = useState(false);
+    const effectRef = useRef<MinaEffect | null>(null);
+    const gsapRef = useRef<Gsap | null>(null);
+    const tlRef = useRef<LoopTimeline | null>(null);
+    const modeRef = useRef<ShaderMode>('lines');
+
+    // kill first — a mid-flight PEAK yoyo would fight the bundle's lineWidth —
+    // then restore-and-apply the bundle and rebuild the breath at its peak width
+    const switchMode = (id: ShaderMode) => {
+        const effect = effectRef.current;
+        const gsap = gsapRef.current;
+        if (!effect || !gsap || id === modeRef.current) return;
+        tlRef.current?.kill();
+        gsap.killTweensOf(effect.params);
+        applyLoopMode(effect.params, id);
+        const mode = LOOP_MODES.find((m) => m.id === id) ?? LOOP_MODES[0];
+        tlRef.current = buildTimeline(gsap, effect, mode.peakLineWidth);
+        modeRef.current = id;
+        setModeId(id);
+    };
+    const switchModeRef = useRef(switchMode);
+    switchModeRef.current = switchMode;
 
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        let effect: MinaEffect | null = null;
         let disposed = false;
-        let tl: { kill(): void } | null = null;
         // dynamic imports keep the WebGPU engine (and lil-gui/gsap) out of the build-time render
         Promise.all([import('gsap'), import('@/effects/effect')])
             .then(([{ gsap }, m]) =>
@@ -38,20 +83,15 @@ export default function Loop() {
                         e.destroy();
                         return;
                     }
-                    effect = e;
+                    effectRef.current = e;
+                    gsapRef.current = gsap;
                     return e.firstFrame.then(() => {
                         if (disposed) return;
                         setReady(true);
-                        // The endless breath. `progress` is safe to own — autoplay
-                        // is off, so the engine's clock never writes it. At the
-                        // peak, progress rests at 1 while the width breathes once
-                        // and the bloom swells on its own as the low-passed motion
-                        // energy settles.
-                        tl = gsap
-                            .timeline({ repeat: -1, repeatDelay: DARK, delay: 0.4 })
-                            .to(e.params, { progress: 1, duration: DRAW, ease: 'sine.inOut' })
-                            .to(e.params, { lineWidth: 6, duration: PEAK / 2, ease: 'sine.inOut', yoyo: true, repeat: 1 })
-                            .to(e.params, { progress: 0, duration: UNDRAW, ease: 'sine.inOut' });
+                        // boot must render byte-identical to the legacy loop
+                        // (record:loop compares it): no applyLoopMode here — the
+                        // engine starts in 'lines' and these are the legacy tweens
+                        tlRef.current = buildTimeline(gsap, e, LOOP_MODES[0].peakLineWidth);
                     });
                 })
             )
@@ -62,10 +102,32 @@ export default function Loop() {
                     setReady(true);
                 }
             });
+        // digit keys + chip idle fade live in this same effect so the
+        // StrictMode double-mount cleanup stays airtight
+        let idleTimer: number | undefined;
+        const wake = () => {
+            setChipsIdle(false);
+            window.clearTimeout(idleTimer);
+            idleTimer = window.setTimeout(() => setChipsIdle(true), 3000);
+        };
+        const onKey = (ev: KeyboardEvent) => {
+            wake();
+            const i = '123456789'.indexOf(ev.key);
+            if (i !== -1) switchModeRef.current(LOOP_MODES[i].id);
+        };
+        window.addEventListener('pointermove', wake);
+        window.addEventListener('keydown', onKey);
+        wake();
         return () => {
             disposed = true;
-            tl?.kill();
-            effect?.destroy(); // its choreo.dispose -> killTweensOf(params) backstops the kill
+            window.removeEventListener('pointermove', wake);
+            window.removeEventListener('keydown', onKey);
+            window.clearTimeout(idleTimer);
+            tlRef.current?.kill();
+            tlRef.current = null;
+            effectRef.current?.destroy(); // its choreo.dispose -> killTweensOf(params) backstops the kill
+            effectRef.current = null;
+            gsapRef.current = null;
         };
     }, []);
 
@@ -79,6 +141,21 @@ export default function Loop() {
             <main className={`${montserrat.className} ${styles.page}`}>
                 <canvas ref={canvasRef} className={styles.gpu} />
                 <div className={`${styles.preroll} ${ready ? styles.gone : ''}`} />
+                {ready && !unsupported && (
+                    <div className={`${styles.modes} ${chipsIdle ? styles.modesIdle : ''}`}>
+                        {LOOP_MODES.map((m, i) => (
+                            <button
+                                key={m.id}
+                                type="button"
+                                className={`${styles.chip} ${modeId === m.id ? styles.chipOn : ''}`}
+                                aria-pressed={modeId === m.id}
+                                onClick={() => switchMode(m.id)}
+                            >
+                                {`${i + 1} ${m.label}`}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 {unsupported && (
                     <div className={styles.fallback}>
                         <div>

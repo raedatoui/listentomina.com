@@ -143,12 +143,20 @@ export const BASE: EffectConfig = {
 
 export const SETTINGS_KEYS = Object.keys(BASE) as (keyof EffectConfig)[];
 
+// the /loop shader-treatment toggle: which renderer draws the mark. A
+// transient like `progress` — never part of EffectConfig/BASE, so presets and
+// the GUI's "copy preset" stay untouched. 'lines' is the legacy ribbon
+// renderer and must stay byte-identical (record:loop depends on it).
+export const SHADER_MODES = ['lines', 'liquid', 'ripples', 'neon', 'shatter', 'glass', 'particles', 'swarm', 'ink'] as const;
+export type ShaderMode = (typeof SHADER_MODES)[number];
+
 // the live object the engine renders from and the GUI edits — config plus
 // the transient scrub/readout fields (never part of a preset)
 export interface LiveParams extends EffectConfig {
     progress: number;
     move: number;
     dotTiming: string;
+    shaderMode: ShaderMode;
 }
 
 // numeric-only config keys — the tweenable ones

@@ -64,3 +64,44 @@
     z-index: 10;
     font-family: 'Montserrat', sans-serif;
 }
+
+/* Shader-mode chips: bottom-centre pills that fade after 3 s idle. The
+   container ignores the pointer so the page stays click-through between
+   chips. Class names here must never contain "preroll", "fallback", or
+   "gone" — the recording script matches class*= on those. */
+.modes {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    display: flex;
+    gap: 8px;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+}
+
+.chip {
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.65);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 300;
+    letter-spacing: 0.08em;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* the same accent as .fallback b */
+.chipOn {
+    border-color: #ec7a39;
+    color: #ec7a39;
+}
+
+.modesIdle {
+    opacity: 0;
+}

@@ -14,14 +14,20 @@ import { buildLayout, buildMovePlan, clamp01, type Dot, hsb2rgb, type MovePlan, 
 import { MARK } from '@/effects/mark';
 import { PRESETS } from '@/effects/presets';
 import { DOT_SHADER } from '@/effects/shaders/dot';
+import { INK_DISPLAY_SHADER, INK_DU, INK_DV, INK_F, INK_K, INK_SIM_SHADER, INK_SPLAT_GAIN, INK_SPLAT_SHADER, INK_SPLAT_WIDTH, INK_STEPS } from '@/effects/shaders/ink';
 import { LINE_SHADER } from '@/effects/shaders/line';
-import { MOSAIC_SHADER } from '@/effects/shaders/mosaic';
+import { GLASS_ABERRATION, GLASS_FACET, MOSAIC_MODE_GLASS, MOSAIC_MODE_SHATTER, MOSAIC_SHADER, SHATTER_ROT, SHATTER_SCATTER } from '@/effects/shaders/mosaic';
+import { PARTICLES_PER_SEG, PARTICLE_SHADER, PARTICLE_SIZE } from '@/effects/shaders/particles';
 import { POST_SHADER } from '@/effects/shaders/post';
+import { SDF_EXT_DIM, SDF_K_MAX, SDF_K_MIN, SDF_NEON_FREQ, SDF_NEON_WARP, SDF_RIPPLE_FREQ, SDF_RIPPLE_SPEED, SDF_SHADER } from '@/effects/shaders/sdf';
+import { SWARM_DRIFT, SWARM_JITTER, SWARM_PER_SEG, SWARM_SHADER, SWARM_SIZE, SWARM_STAGGER } from '@/effects/shaders/swarm';
 import { clampCanvas, fallbackTexture, loadTexture, type TextureSource } from '@/effects/texture';
 
 export interface MinaEffect {
     play(): void;
     move(): void;
+    /** reset the ink mode's reaction-diffusion state (it re-clears on the next ink frame) */
+    clearInk(): void;
     /** resolves once the shard layer is actually painting (lift any pre-roll cover) */
     firstFrame: Promise<void>;
     destroy(): void;
@@ -79,8 +85,8 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         fragment: { module: mosaicModule, entryPoint: 'fs', targets: [{ format, blend: blendOver }] },
         primitive: { topology: 'triangle-list' },
     });
-    const mosaicUBuf = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-    const mosaicU = new Float32Array(16);
+    const mosaicUBuf = device.createBuffer({ size: 96, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const mosaicU = new Float32Array(24);
 
     const lineModule = device.createShaderModule({ code: LINE_SHADER });
     const linePipeline = device.createRenderPipeline({
@@ -282,6 +288,164 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         compBloomBG = bg(compBloomPipeline, bloomBView, compBloomU);
     }
 
+    // ---------- shader-mode pipelines (/loop toggle: sdf field · particles · ink) ----------
+    // Alternative renderers of the SAME per-frame instance data: lineData is
+    // mirrored into a storage buffer, so every mode stays in sync with the
+    // growth clock for free. Mode 'lines' is the legacy path — every write and
+    // draw below is gated off it, keeping that path byte-identical.
+    const segStore = device.createBuffer({ size: lineData.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    const sdfModule = device.createShaderModule({ code: SDF_SHADER });
+    const sdfPipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: { module: sdfModule, entryPoint: 'vs' },
+        fragment: { module: sdfModule, entryPoint: 'fs', targets: [{ format: 'rgba16float', blend: blendOver }] },
+        primitive: { topology: 'triangle-list' },
+    });
+    const sdfUBuf = device.createBuffer({ size: 96, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const sdfU = new Float32Array(24);
+    const sdfBindGroup = device.createBindGroup({
+        layout: sdfPipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: { buffer: sdfUBuf } },
+            { binding: 1, resource: { buffer: segStore } },
+        ],
+    });
+    const particleModule = device.createShaderModule({ code: PARTICLE_SHADER });
+    const particlePipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: { module: particleModule, entryPoint: 'vs' },
+        fragment: { module: particleModule, entryPoint: 'fs', targets: [{ format: 'rgba16float', blend: blendOver }] },
+        primitive: { topology: 'triangle-list' },
+    });
+    const particleUBuf = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const particleU = new Float32Array(12);
+    const particleBindGroup = device.createBindGroup({
+        layout: particlePipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: { buffer: particleUBuf } },
+            { binding: 1, resource: { buffer: segStore } },
+        ],
+    });
+    // swarm: the one mode that ignores the draw sequence — it reads the FULL
+    // segment extents, packed once per layout rebuild, and condenses hashed
+    // wander orbits onto them in hash order
+    const segFullStore = device.createBuffer({ size: lineData.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+    const segFullData = new Float32Array(MAX_LINE_INST * 10); // from.xy, to.xy, ext, rgb, startT, dur
+    let segFullCount = 0;
+    const swarmModule = device.createShaderModule({ code: SWARM_SHADER });
+    const swarmPipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: { module: swarmModule, entryPoint: 'vs' },
+        fragment: { module: swarmModule, entryPoint: 'fs', targets: [{ format: 'rgba16float', blend: blendOver }] },
+        primitive: { topology: 'triangle-list' },
+    });
+    const swarmUBuf = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const swarmU = new Float32Array(16);
+    const swarmBindGroup = device.createBindGroup({
+        layout: swarmPipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: { buffer: swarmUBuf } },
+            { binding: 1, resource: { buffer: segFullStore } },
+        ],
+    });
+    // ink: Gray-Scott reaction-diffusion — the one stateful renderer. The
+    // pipelines are cheap and built eagerly; the half-res ping-pong state
+    // textures are lazy (most sessions never enter the mode) and rebuilt on
+    // resize. inkReady false forces a clear on the next ink frame.
+    const blendSplat: GPUBlendState = {
+        color: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+        alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' },
+    };
+    const inkSplatModule = device.createShaderModule({ code: INK_SPLAT_SHADER });
+    const inkSplatPipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: {
+            module: inkSplatModule,
+            entryPoint: 'vs',
+            buffers: [
+                {
+                    arrayStride: 10 * 4,
+                    stepMode: 'instance',
+                    attributes: [
+                        { shaderLocation: 0, offset: 0, format: 'float32x2' }, // tail px
+                        { shaderLocation: 1, offset: 8, format: 'float32x2' }, // head px
+                        { shaderLocation: 2, offset: 16, format: 'float32' }, // alpha mul
+                        { shaderLocation: 3, offset: 20, format: 'float32' }, // motion
+                        { shaderLocation: 4, offset: 24, format: 'float32x3' }, // texture colour
+                        { shaderLocation: 5, offset: 36, format: 'float32' }, // ext flag
+                    ],
+                },
+            ],
+        },
+        fragment: { module: inkSplatModule, entryPoint: 'fs', targets: [{ format: 'rg16float', blend: blendSplat }] },
+        primitive: { topology: 'triangle-list' },
+    });
+    const inkSplatUBuf = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const inkSplatU = new Float32Array(4);
+    const inkSplatBindGroup = device.createBindGroup({
+        layout: inkSplatPipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: { buffer: inkSplatUBuf } }],
+    });
+    const inkSimModule = device.createShaderModule({ code: INK_SIM_SHADER });
+    const inkSimPipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: { module: inkSimModule, entryPoint: 'vs' },
+        fragment: { module: inkSimModule, entryPoint: 'fs', targets: [{ format: 'rg16float' }] },
+        primitive: { topology: 'triangle-list' },
+    });
+    const inkSimUBuf = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    device.queue.writeBuffer(inkSimUBuf, 0, new Float32Array([INK_DU, INK_DV, INK_F, INK_K, 1, 0, 0, 0])); // constants, written once
+    const inkDisplayModule = device.createShaderModule({ code: INK_DISPLAY_SHADER });
+    const inkDisplayPipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: { module: inkDisplayModule, entryPoint: 'vs' },
+        fragment: { module: inkDisplayModule, entryPoint: 'fs', targets: [{ format: 'rgba16float', blend: blendOver }] },
+        primitive: { topology: 'triangle-list' },
+    });
+    const inkDispUBuf = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const inkDispU = new Float32Array(8);
+    let inkTexs: GPUTexture[] = [];
+    let inkViews: GPUTextureView[] = [];
+    let inkSimBGs: GPUBindGroup[] = []; // [i] reads state texture i
+    let inkDispBGs: GPUBindGroup[] = [];
+    let inkIndex = 0; // which texture holds the current sim state
+    let inkReady = false;
+    function makeInkTargets() {
+        for (const t of inkTexs) t.destroy();
+        inkTexs = [];
+        inkViews = [];
+        for (let i = 0; i < 2; i++) {
+            const t = device.createTexture({
+                size: [Math.max(1, canvas.width >> 1), Math.max(1, canvas.height >> 1)],
+                format: 'rg16float',
+                usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+            });
+            inkTexs.push(t);
+            inkViews.push(t.createView());
+        }
+        inkSimBGs = inkViews.map((v) =>
+            device.createBindGroup({
+                layout: inkSimPipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: v },
+                    { binding: 1, resource: { buffer: inkSimUBuf } },
+                ],
+            })
+        );
+        inkDispBGs = inkViews.map((v) =>
+            device.createBindGroup({
+                layout: inkDisplayPipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: postSampler },
+                    { binding: 1, resource: v },
+                    { binding: 2, resource: { buffer: inkDispUBuf } },
+                ],
+            })
+        );
+        inkIndex = 0;
+        inkReady = false;
+    }
+
     // ---------- texture (static image; see src/effects/texture.ts) ----------
     const sampler = device.createSampler({
         magFilter: 'linear',
@@ -316,6 +480,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         progress: 0, // transient scrub 0..1
         move: 0, // transient move scrub 0..1
         dotTiming: '', // derived readout (not persisted)
+        shaderMode: 'lines', // transient renderer select (/loop toggle); 'lines' = legacy path
     };
 
     // the active preset's declarative tweens, rebound on preset switch
@@ -372,6 +537,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         canvas.width = w;
         canvas.height = h;
         makePostTargets();
+        if (inkTexs.length) makeInkTargets(); // sim state is size-bound; restarts cleared
         cellsDirty = true; // arrangement depends on the screen rect
         // re-fit the texture to the new layout (covers the initial load too)
         if (texTimer !== null) clearTimeout(texTimer);
@@ -418,6 +584,25 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         mosaicVertCount = res.vertCount;
         layoutSegs = res.segs;
         layoutDots = res.dots;
+        // static full-extent pack for the swarm mode: the COMPLETE geometry
+        // (not the per-frame grown heads), so its formation can ignore the
+        // draw sequence entirely
+        segFullCount = Math.min(MAX_LINE_INST, res.segs.length);
+        for (let i = 0; i < segFullCount; i++) {
+            const s = res.segs[i];
+            const o = i * 10;
+            segFullData[o] = s.L.p0[0] + s.L.d[0] * s.from;
+            segFullData[o + 1] = s.L.p0[1] + s.L.d[1] * s.from;
+            segFullData[o + 2] = s.L.p0[0] + s.L.d[0] * s.to;
+            segFullData[o + 3] = s.L.p0[1] + s.L.d[1] * s.to;
+            segFullData[o + 4] = s.isExt;
+            segFullData[o + 5] = s.col[0];
+            segFullData[o + 6] = s.col[1];
+            segFullData[o + 7] = s.col[2];
+            segFullData[o + 8] = s.startT;
+            segFullData[o + 9] = s.dur;
+        }
+        if (segFullCount) device.queue.writeBuffer(segFullStore, 0, segFullData, 0, segFullCount * 10);
         // keep the palette from the PRIMARY placement: the docked rebuild
         // samples over black (all-white fallback), which is no palette at all
         if (curPos === 0) markPalette = res.segs.filter((s) => !s.isExt).map((s) => s.col);
@@ -583,6 +768,13 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             doMove();
         }
 
+        // /loop shader-mode toggle: which renderer draws the mark this frame.
+        // 'lines' keeps the legacy path byte-identical (record:loop).
+        const sm = params.shaderMode;
+        const sdfOn = sm === 'liquid' || sm === 'ripples' || sm === 'neon';
+        const ribbonsOn = sm === 'lines' || sm === 'shatter' || sm === 'glass';
+        const mosaicMode = sm === 'shatter' ? MOSAIC_MODE_SHATTER : sm === 'glass' ? MOSAIC_MODE_GLASS : 0;
+
         const W = canvas.clientWidth;
         const H = canvas.clientHeight;
         // ripple off -> the per-shard zoom starts at 1, so nothing warps
@@ -602,6 +794,14 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             params.colorBoost,
             params.flashTint,
             params.veil,
+            mosaicMode,
+            p, // shatter assembly drive — reversing progress explodes the shards back out
+            SHATTER_SCATTER,
+            SHATTER_ROT,
+            GLASS_ABERRATION,
+            GLASS_FACET,
+            (now / 1000) * 0.35, // glass light angle drifts slowly
+            now / 1000,
         ]);
         device.queue.writeBuffer(mosaicUBuf, 0, mosaicU);
 
@@ -746,6 +946,64 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             device.queue.writeBuffer(glowUBufs[i], 0, glowUs[i]);
         }
 
+        // Shader-mode uploads: mirror this frame's instances into the storage
+        // buffer and pack the active renderer's uniforms — nothing runs on the
+        // legacy 'lines' path. energySmooth is last frame's value here (it
+        // settles below); the one-frame lag is invisible.
+        if ((sdfOn || sm === 'particles') && inst) device.queue.writeBuffer(segStore, 0, lineData, 0, inst * 10);
+        if (sdfOn) {
+            // liquid condenses: the smooth-min radius eases from molten to
+            // crisp as the draw completes; reversing progress melts it again
+            const ease = 1 - (1 - p) ** 3;
+            const k = sm === 'liquid' ? SDF_K_MAX + (SDF_K_MIN - SDF_K_MAX) * ease : 2;
+            const warp = sm === 'neon' ? SDF_NEON_WARP * (0.15 + 0.85 * energySmooth) : 0;
+            const sdfMode = sm === 'liquid' ? 0 : sm === 'ripples' ? 1 : 2;
+            // [viewport, count, mode, progress, k, time, width, colA rgb+i, colB rgb+gain, p0, p1]
+            sdfU.set([
+                W,
+                H,
+                inst,
+                sdfMode,
+                p,
+                k,
+                now / 1000,
+                Math.max(0.8, lw * 0.5),
+                lr,
+                lg,
+                lb,
+                1,
+                gr,
+                gg,
+                gb,
+                params.glow,
+                SDF_RIPPLE_FREQ,
+                SDF_RIPPLE_SPEED,
+                warp,
+                SDF_NEON_FREQ,
+                energySmooth,
+                SDF_EXT_DIM,
+                0.35 * params.glow,
+                0,
+            ]);
+            device.queue.writeBuffer(sdfUBuf, 0, sdfU);
+        }
+        if (sm === 'particles') {
+            particleU.set([W, H, PARTICLES_PER_SEG, PARTICLE_SIZE, p, energySmooth, SDF_EXT_DIM, 0, 0, 0, 0, 0]);
+            device.queue.writeBuffer(particleUBuf, 0, particleU);
+        }
+        if (sm === 'swarm') {
+            swarmU.set([W, H, segFullCount, SWARM_PER_SEG, p, now / 1000, SWARM_SIZE, SWARM_DRIFT, SWARM_JITTER, SDF_EXT_DIM, SWARM_STAGGER, 0, 0, 0, 0, 0]);
+            device.queue.writeBuffer(swarmUBuf, 0, swarmU);
+        }
+        if (sm === 'ink') {
+            inkSplatU.set([W, H, INK_SPLAT_WIDTH, INK_SPLAT_GAIN]);
+            device.queue.writeBuffer(inkSplatUBuf, 0, inkSplatU);
+            inkDispU.set([lr, lg, lb, 1, 0.15, 0.45, 0, 0]);
+            device.queue.writeBuffer(inkDispUBuf, 0, inkDispU);
+        } else {
+            inkReady = false; // re-entering ink always starts from a cleared sim
+        }
+
         // Dot clocks. Main mode: absolute progress (middle, top, bottom).
         // Move mode: target dots grow late in the move (with pulses) while the
         // source dots shrink away early — both on the move clock m.
@@ -814,6 +1072,43 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         }
 
         const enc = device.createCommandEncoder();
+        // ink pre-passes: splat this frame's segments into the sim state, then
+        // step Gray-Scott, ping-ponging the half-res pair. Stateful by design —
+        // the one renderer where determinism is deliberately waived.
+        if (sm === 'ink') {
+            if (!inkTexs.length) makeInkTargets();
+            if (!inkReady) {
+                inkIndex = 0;
+                for (const view of inkViews) {
+                    const cp = enc.beginRenderPass({
+                        colorAttachments: [{ view, clearValue: [1, 0, 0, 0], loadOp: 'clear', storeOp: 'store' }], // U = 1, V = 0
+                    });
+                    cp.end();
+                }
+                inkReady = true;
+            }
+            if (inst) {
+                const sp = enc.beginRenderPass({
+                    colorAttachments: [{ view: inkViews[inkIndex], loadOp: 'load', storeOp: 'store' }],
+                });
+                sp.setPipeline(inkSplatPipeline);
+                sp.setBindGroup(0, inkSplatBindGroup);
+                sp.setVertexBuffer(0, lineBuf);
+                sp.draw(6, inst);
+                sp.end();
+            }
+            for (let i = 0; i < INK_STEPS; i++) {
+                const next = 1 - inkIndex;
+                const sim = enc.beginRenderPass({
+                    colorAttachments: [{ view: inkViews[next], clearValue: [0, 0, 0, 0], loadOp: 'clear', storeOp: 'store' }],
+                });
+                sim.setPipeline(inkSimPipeline);
+                sim.setBindGroup(0, inkSimBGs[inkIndex]);
+                sim.draw(3);
+                sim.end();
+                inkIndex = next;
+            }
+        }
         // pass 1 — the luminous layer (lines + dots), offscreen so it can feed
         // both the bloom chain and the final composite
         const pass = enc.beginRenderPass({
@@ -826,7 +1121,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
                 },
             ],
         });
-        if (inst && lw > 0.05) {
+        if (ribbonsOn && inst && lw > 0.05) {
             pass.setPipeline(linePipeline);
             pass.setVertexBuffer(0, lineBuf);
             if (params.glow > 0.01) {
@@ -839,6 +1134,28 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             }
             pass.setBindGroup(0, lineBindGroup);
             pass.draw(6, inst);
+        }
+        // alternative renderers of the same segments (see the shader-mode region)
+        if (sdfOn && inst) {
+            pass.setPipeline(sdfPipeline);
+            pass.setBindGroup(0, sdfBindGroup);
+            pass.draw(3);
+        }
+        if (sm === 'particles' && inst) {
+            pass.setPipeline(particlePipeline);
+            pass.setBindGroup(0, particleBindGroup);
+            pass.draw(6, inst * PARTICLES_PER_SEG);
+        }
+        // the swarm draws even at progress 0: the drifters idle between breaths
+        if (sm === 'swarm' && segFullCount) {
+            pass.setPipeline(swarmPipeline);
+            pass.setBindGroup(0, swarmBindGroup);
+            pass.draw(6, segFullCount * SWARM_PER_SEG);
+        }
+        if (sm === 'ink' && inkReady) {
+            pass.setPipeline(inkDisplayPipeline);
+            pass.setBindGroup(0, inkDispBGs[inkIndex]);
+            pass.draw(3);
         }
         if (params.dotSize > 0.01) {
             // the three brand dots, on top of the lines
@@ -918,6 +1235,9 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     const api: MinaEffect = {
         play,
         move: doMove,
+        clearInk() {
+            inkReady = false; // the next ink frame re-clears the sim
+        },
         firstFrame,
         params,
         destroy() {
@@ -930,6 +1250,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             gui?.destroy();
             choreo?.dispose();
             settleFirst(); // never leave a page waiting on a dead engine
+            for (const t of inkTexs) t.destroy();
             device.destroy();
         },
     };
