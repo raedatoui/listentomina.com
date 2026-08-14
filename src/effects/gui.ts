@@ -85,15 +85,15 @@ export function buildGui(params: LiveParams, hooks: GuiHooks, initialPreset: str
     fMove.add(params, 'autoMove').name('auto move');
 
     const fRev = gui.addFolder('Reveal');
-    fRev.add(params, 'whiteDur', 0.01, 0.5, 0.01).name('white flash');
-    fRev.add(params, 'colorDur', 0.02, 2, 0.01).name('white → colour');
-    fRev.add(params, 'texDur', 0.05, 3, 0.01).name('colour → texture');
+    fRev.add(params, 'whiteDur', 0, 0.5, 0.01).name('white flash');
+    fRev.add(params, 'colorDur', 0, 2, 0.01).name('white → colour');
+    fRev.add(params, 'texDur', 0, 3, 0.01).name('colour → texture');
     fRev.add(params, 'whiteLevel', 0, 1, 0.01).name('flash level');
     fRev.add(params, 'flashTint', 0, 1, 0.01).name('flash tint');
     fRev.add(params, 'veil', 0, 1, 0.01).name('texture veil');
     fRev.add(params, 'colorSat', 0, 2, 0.01).name('colour sat');
     fRev.add(params, 'colorBoost', 0.3, 2, 0.01).name('colour bright');
-    fRev.add(params, 'hold', 0.02, 1, 0.01).name('handoff');
+    fRev.add(params, 'hold', 0, 1, 0.01).name('handoff');
 
     fLogo.add(params, 'dotSize', 0, 3, 0.01).name('dot size');
     fLogo.add(params, 'dotStart', 0, 1, 0.005).name('dot start');
@@ -118,7 +118,7 @@ export function buildGui(params: LiveParams, hooks: GuiHooks, initialPreset: str
     fGlow.add(params, 'glowHue', -180, 180, 1).name('hue shift');
     fGlow.add(params, 'bloom', 0, 3, 0.01).name('bloom');
     fGlow.add(params, 'bloomRadius', 0.5, 4, 0.05).name('bloom radius');
-    fGlow.add(params, 'bloomIdle', 0, 1, 0.01).name('bloom at rest');
+    fGlow.add(params, 'bloomIdle', 0, 3, 0.01).name('bloom at rest');
 
     const fTrail = gui.addFolder('Trail');
     fTrail.add(params, 'trail', 0, 1, 0.01).name('amount');

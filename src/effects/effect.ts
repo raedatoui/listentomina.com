@@ -41,7 +41,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     if (!adapter) throw new Error('WebGPU unavailable');
     const device = await adapter.requestDevice();
     device.lost.then((info) => {
-        console.error('WebGPU device lost:', info);
+        if (info.reason !== 'destroyed') console.error('WebGPU device lost:', info);
     });
     device.addEventListener('uncapturederror', (e) => console.error('WebGPU error:', (e as GPUUncapturedErrorEvent).error?.message || e));
 
@@ -234,6 +234,9 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     const compSceneU = mkPU();
     const compBloomU = mkPU();
     device.queue.writeBuffer(compSceneU, 0, new Float32Array([1, 0])); // crisp layer at full strength
+    const blurHData = new Float32Array(2); // (x texel step, 0)
+    const blurVData = new Float32Array(2); // (0, y texel step)
+    const compBloomData = new Float32Array(2); // (strength, 0)
     let sceneView!: GPUTextureView;
     let bloomAView!: GPUTextureView;
     let bloomBView!: GPUTextureView;
@@ -786,9 +789,11 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             device.queue.writeBuffer(dotPulseUBuf, 0, dotPulseU);
         }
         // readout: when the dot sequence starts and finishes, in seconds
-        const dotEnd = params.dotStart + 2 * params.dotStagger + params.dotGrow;
-        const info = `${(params.dotStart * params.duration).toFixed(2)}s → ${(dotEnd * params.duration).toFixed(2)}s${dotEnd > 1 ? '  ⚠ past end' : ''}`;
-        if (params.dotTiming !== info) params.dotTiming = info;
+        if (gui) {
+            const dotEnd = params.dotStart + 2 * params.dotStagger + params.dotGrow;
+            const info = `${(params.dotStart * params.duration).toFixed(2)}s → ${(dotEnd * params.duration).toFixed(2)}s${dotEnd > 1 ? '  ⚠ past end' : ''}`;
+            if (params.dotTiming !== info) params.dotTiming = info;
+        }
 
         // bloom strength swells with how much of the system is moving right now.
         // The raw average is a step function at mode switches (the dock claims
@@ -800,10 +805,12 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         const energy = energySmooth;
         const bloomOn = params.bloom > 0.01;
         if (bloomOn) {
-            device.queue.writeBuffer(blurHU, 0, new Float32Array([params.bloomRadius / bloomHalfW, 0]));
-            device.queue.writeBuffer(blurVU, 0, new Float32Array([0, params.bloomRadius / bloomHalfH]));
-            const strength = params.bloom * (params.bloomIdle + (1 - params.bloomIdle) * energy);
-            device.queue.writeBuffer(compBloomU, 0, new Float32Array([strength, 0]));
+            blurHData[0] = params.bloomRadius / bloomHalfW;
+            device.queue.writeBuffer(blurHU, 0, blurHData);
+            blurVData[1] = params.bloomRadius / bloomHalfH;
+            device.queue.writeBuffer(blurVU, 0, blurVData);
+            compBloomData[0] = params.bloom * (params.bloomIdle + (1 - params.bloomIdle) * energy);
+            device.queue.writeBuffer(compBloomU, 0, compBloomData);
         }
 
         const enc = device.createCommandEncoder();
