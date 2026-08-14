@@ -218,27 +218,39 @@
     opacity: 0;
 }
 
-.fallback {
+/* No-WebGPU fallback: a static Mina symbol locked where the engine would
+   have docked the drawn mark. Landscape mirrors the ephemeral preset's dock
+   exactly — logoScale2 0.24 is the mark's height as a fraction of the
+   viewport height, logoX2/logoY2 0.045/0.14 its centre — which puts it on
+   the black margin left of the artwork, so the white PNG reads. Portrait
+   centres it in the band above the artwork, the same placement effects.tsx
+   computes for the engine (placeDock). Fades in on mount, matching the
+   title's 2.5s. */
+.markLock {
     position: fixed;
-    inset: 0;
-    z-index: 20;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 18px;
-    text-align: center;
-    background: rgba(4, 8, 10, 0.92);
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 13px;
-    font-weight: 300;
-    padding: 32px;
+    left: 4.5vw;
+    top: 14vh;
+    z-index: 0;
+    width: auto;
+    height: 24vh;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    opacity: 0;
+    animation: markLockIn 2.5s ease forwards;
 }
 
-.fallback b {
-    color: #ec7a39;
-    font-weight: 700;
-    letter-spacing: 0.12em;
+@keyframes markLockIn {
+    to {
+        opacity: 1;
+    }
+}
+
+@media (orientation: portrait) {
+    .markLock {
+        left: 50%;
+        top: calc((100vh - var(--art-side)) / 4);
+        height: min(24vh, (100vh - var(--art-side)) * 0.375);
+    }
 }
 
 /* lil-gui mounts on document.body (outside this page's tree) */

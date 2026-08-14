@@ -72,7 +72,7 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
     const veilRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<HTMLIFrameElement>(null);
     const [ready, setReady] = useState(false);
-    const [unsupported, setUnsupported] = useState(false);
+    const [fallback, setFallback] = useState(false);
     const [showTitle, setShowTitle] = useState(false);
 
     useEffect(() => {
@@ -92,8 +92,37 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                 (err) => console.warn(err) // flip still happens; the player shows its own ▶
             );
         }
-        // dynamic imports keep the WebGPU engine (and lil-gui/gsap) out of the build-time render
-        Promise.all([import('gsap'), import('@/effects/effect')])
+        // No WebGPU: no mark drawing, no shards. The artwork blooms straight
+        // in and flips to the player, and the mark is a static PNG locked
+        // where the engine would have docked it (.markLock in the CSS).
+        const runFallback = (gsap: typeof import('gsap').gsap) => {
+            if (disposed) return;
+            setFallback(true);
+            setReady(true); // lift the preroll — the page is still black underneath
+            setShowTitle(true);
+            const bg = bgRef.current;
+            const card = cardRef.current;
+            const veil = veilRef.current;
+            if (!bg || !card || !veil) return;
+            // same shape as finale(), just slower and from a cold start: the
+            // artwork blooms centre-out as the white veil burns off, then the
+            // cover flips over into the player
+            tl = gsap
+                .timeline()
+                .to(bg, { opacity: 1, duration: 1.2, ease: 'power1.out' }, 0)
+                .to(bg, { maskSize: '350% 350%', webkitMaskSize: '350% 350%', duration: 1.8, ease: 'power1.inOut' }, 0)
+                .to(veil, { opacity: 0, duration: 1.8, ease: 'power1.out' }, 0)
+                .add(() => widget?.play(), '+=0.5')
+                .to(card, { rotationY: 180, duration: 0.8, ease: 'power2.inOut' }, '<');
+        };
+
+        // dynamic imports keep the WebGPU engine (and lil-gui/gsap) out of the build-time render.
+        // Unsupported browsers never download the engine at all — the rejection
+        // drops straight into the catch below, which runs the fallback.
+        const engine: Promise<typeof import('@/effects/effect')> = navigator.gpu
+            ? import('@/effects/effect')
+            : Promise.reject(new Error('WebGPU unavailable'));
+        Promise.all([import('gsap'), engine])
             .then(([{ gsap }, m]) =>
                 m.createMinaEffect(canvas, 'ephemeral', SHOW_GUI, withKeys).then((e) => {
                     if (disposed) {
@@ -169,11 +198,9 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                 })
             )
             .catch((err) => {
-                console.error(err);
-                if (!disposed) {
-                    setUnsupported(true);
-                    setReady(true);
-                }
+                console.warn(err);
+                // gsap resolves from the module cache here (it always loads)
+                import('gsap').then(({ gsap }) => runFallback(gsap));
             });
         return () => {
             disposed = true;
@@ -233,14 +260,7 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                 </div>
                 <canvas ref={canvasRef} className={styles.gpu} />
                 <div className={`${styles.preroll} ${ready ? styles.gone : ''}`} />
-                {unsupported && (
-                    <div className={styles.fallback}>
-                        <div>
-                            <b>WebGPU unavailable</b>
-                        </div>
-                        <div>This demo needs a recent Chrome, Edge, or Safari with WebGPU enabled.</div>
-                    </div>
-                )}
+                {fallback && <Image className={styles.markLock} src="/images/Mina Symbol_White.png" alt="MINA" width={578} height={1104} priority />}
             </main>
         </>
     );
