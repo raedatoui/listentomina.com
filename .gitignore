@@ -104,3 +104,6 @@ node_modules/
 
 public/
 .idea
+
+# record:loop output (frames + mp4)
+/capture/
