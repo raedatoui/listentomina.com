@@ -22,16 +22,16 @@ No test suite.
 
 ## Architecture
 
-- `src/pages/_app.tsx` wraps every page in the site shell (Lovelo font, logo header, "jejune moon" footer) **unless** the page component has a static `standalone = true` property (e.g. `index.tsx`, `saveme.tsx`) — standalone pages render bare and own their full layout.
+- `src/pages/_app.tsx` wraps every page in the site shell (Lovelo font, logo header, "jejune moon" footer) **unless** the page component has a static `standalone = true` property (e.g. `catalog.tsx`, `saveme.tsx`) — standalone pages render bare and own their full layout.
 - The release catalog is hardcoded at the top of `src/components/releases.tsx`. Each entry's `trackId` is a SoundCloud track id (or playlist id when `isPlaylist: true`) used for the embedded player; `adSupported: true` disables autoplay. Cover `name` may contain `<br />` (rendered via `dangerouslySetInnerHTML`). Cover art lives in `public/images/covers/`.
 - Single-release pages (`ride.tsx`, `disobey.tsx`, `wanted.tsx`) are thin wrappers: hardcoded `cover` + `links` data passed to the shared `src/components/single.tsx`.
-- `index2.tsx` is the previous homepage layout, kept alongside the hero-styled `index.tsx`.
+- `catalog.tsx` (`/catalog`) is the hero-styled release catalog — the former homepage. `index2.tsx` is the layout that preceded it.
 - Styling is plain CSS Modules in `src/styles/` (one file per page/section). No Tailwind — `components.json` is a leftover shadcn config, not wired up.
 - Fonts: Lovelo via `next/font/local` from `public/fonts/` (re-declared per standalone page), Montserrat via `next/font/google`.
 
 ## /effects — WebGPU intro (The Ephemeral Trail announcement)
 
-`src/pages/effects.tsx` is a standalone page hosting a WebGPU animation announcing the "Ephemeral Trail" release: the MINA mark draws itself as lines, its extended lines shatter the viewport into shards that resolve to the cover art, the shard layer hands off invisibly to the real page, then the mark docks to the upper left and the h1 fades in. Ported from the `apps/mina-neweffects` prototype (kept untouched as reference). The page dynamic-imports the engine in a `useEffect` and boots the `ephemeral` preset.
+`src/pages/effects.tsx` is the homepage — `index.tsx` is a one-line re-export of it, so `/` and `/effects` render the same page. It is a standalone page hosting a WebGPU animation announcing the "Ephemeral Trail" release: the MINA mark draws itself as lines, its extended lines shatter the viewport into shards that resolve to the cover art, the shard layer hands off invisibly to the real page, then the mark docks to the upper left and the h1 fades in. Ported from the `apps/mina-neweffects` prototype (kept untouched as reference). The page dynamic-imports the engine in a `useEffect` and boots the `ephemeral` preset.
 
 ### Module layout (`src/effects/`)
 

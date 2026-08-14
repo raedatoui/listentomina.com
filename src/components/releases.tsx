@@ -5,34 +5,20 @@ import Release from '@/components/release';
 const releases = [
     {
         cover: {
-            name: 'Carry Over',
-            alt: 'Carry Over',
-            file: 'carry-over.jpg',
+            name: 'The Ephemeral Trail',
+            alt: 'The Ephemeral Trail',
+            file: '/images/the ephemeral trail cover.jpg',
         },
         links: {
             spotify: '',
             appleMusic: '',
-            soundcloud: 'https://soundcloud.com/listentomina/carry-over',
+            soundcloud: 'https://soundcloud.com/listentomina/sets/the-ephemeral-trail/s-Gub7SsORtyC',
             youtube: '',
             deezer: '',
         },
-        trackId: '2310717002',
-    },
-    {
-        cover: {
-            name: 'Never Gonna Survive<br />(Save Me)',
-            alt: 'Never Gonna Survive (Save Me)',
-            file: 'never-gonna-survive.webp',
-        },
-        links: {
-            spotify: '',
-            appleMusic: '',
-            soundcloud: 'https://soundcloud.com/listentomina/never-gonna-survive-save-me',
-            youtube: '',
-            deezer: '',
-        },
-        trackId: '2287837421',
-        adSupported: true,
+        trackId: '2199235493',
+        isPlaylist: true,
+        secretToken: 's-Gub7SsORtyC',
     },
     {
         cover: {
