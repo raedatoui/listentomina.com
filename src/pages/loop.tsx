@@ -12,10 +12,10 @@ const SHOW_GUI = process.env.NEXT_PUBLIC_EFFECTS_GUI === 'true';
 
 // one breath of the loop, in seconds (the preset's `duration` is inert here —
 // the page owns the progress clock)
-const DRAW = 3.5; // lines ray in, progress 0 -> 1
-const PEAK = 1.6; // hold at full draw: motion energy decays, so bloomIdle > 1 swells the glow
-const UNDRAW = 3.0; // lines retract, progress 1 -> 0
-const DARK = 0.7; // black beat before the next cycle
+const DRAW = 2.2; // lines ray in, progress 0 -> 1
+const PEAK = 1.0; // hold at full draw: motion energy decays, so bloomIdle > 1 swells the glow
+const UNDRAW = 1.8; // lines retract, progress 1 -> 0
+const DARK = 0.5; // black beat before the next cycle
 
 export default function Loop() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
