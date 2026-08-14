@@ -63,6 +63,23 @@ function loadWidget(iframe: HTMLIFrameElement): Promise<SCWidget> {
     });
 }
 
+// Which intro a visitor actually got, as its own GA4 event name so it shows up
+// in Reports → Engagement → Events with no custom-dimension setup. gtag is
+// loaded `afterInteractive` in _document.tsx and the engine can win that race,
+// so retry briefly (bounded at ~5s) rather than dropping the sample.
+function track(event: 'intro_webgpu' | 'intro_webgl2' | 'intro_static') {
+    let tries = 0;
+    const send = () => {
+        const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag;
+        if (gtag) {
+            gtag('event', event);
+            return;
+        }
+        if (++tries < 20) setTimeout(send, 250);
+    };
+    send();
+}
+
 // `withKeys` arms the engine's R / M / H shortcuts — on at /effects (tuning),
 // off at the homepage, which renders this same component (see index.tsx)
 export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
@@ -97,6 +114,7 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
         // PNG locked where the engine would have docked it (.markLock in the CSS).
         const runFallback = (gsap: typeof import('gsap').gsap) => {
             if (disposed) return;
+            track('intro_static');
             setFallback(true);
             setReady(true); // lift the preroll — the page is still black underneath
             setShowTitle(true);
@@ -122,7 +140,8 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
         // canvas stays untouched until the choice is made: a canvas can hold
         // exactly one context type, so a half-started WebGPU attempt would
         // poison the WebGL2 retry. If both fail, the catch runs the static path.
-        const pickEngine = async (): Promise<(c: HTMLCanvasElement) => Promise<MinaEffect>> => {
+        type Engine = { event: 'intro_webgpu' | 'intro_webgl2'; create: (c: HTMLCanvasElement) => Promise<MinaEffect> };
+        const pickEngine = async (): Promise<Engine> => {
             let gpuOK = false;
             if (navigator.gpu) {
                 try {
@@ -133,19 +152,20 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
             }
             if (gpuOK) {
                 const m = await import('@/effects/effect');
-                return (c) => m.createMinaEffect(c, 'ephemeral', SHOW_GUI, withKeys);
+                return { event: 'intro_webgpu', create: (c) => m.createMinaEffect(c, 'ephemeral', SHOW_GUI, withKeys) };
             }
             const m = await import('@/effects/effect-gl');
-            return (c) => m.createMinaEffectGL(c, 'ephemeral', SHOW_GUI, withKeys);
+            return { event: 'intro_webgl2', create: (c) => m.createMinaEffectGL(c, 'ephemeral', SHOW_GUI, withKeys) };
         };
         // dynamic imports keep the engine (and lil-gui/gsap) out of the build-time render
         Promise.all([import('gsap'), pickEngine()])
-            .then(([{ gsap }, create]) =>
-                create(canvas).then((e) => {
+            .then(([{ gsap }, engine]) =>
+                engine.create(canvas).then((e) => {
                     if (disposed) {
                         e.destroy();
                         return;
                     }
+                    track(engine.event); // the chosen backend really did start
                     effect = e;
                     // Portrait: the preset's upper-left dock clips at the edge and
                     // fights the artwork column — recentre the docked mark in the
