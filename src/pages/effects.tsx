@@ -21,13 +21,15 @@ const SC_SRC =
 // NEXT_PUBLIC_EFFECTS_GUI=true to get it back; inlined at build time
 const SHOW_GUI = process.env.NEXT_PUBLIC_EFFECTS_GUI === 'true';
 
-// the five store links from the homepage's Listen section, same icons
+// the five store links from the homepage's Listen section, same icons, plus
+// Instagram from the Follow section
 const STORES = [
     { href: 'https://open.spotify.com/artist/4rm1J2o7smuSY3jxoqMLPI?si=2T6cae2aSNyqCVCrbZrQXw', src: '/images/spotify-sm.png', alt: 'spotify', width: 40, height: 40 },
     { href: 'https://music.apple.com/us/artist/mina/1711234446', src: '/images/apple.png', alt: 'apple', width: 40, height: 40 },
     { href: 'https://soundcloud.com/listentomina', src: '/images/soundcloud.png', alt: 'soundcloud', width: 60, height: 40 },
     { href: 'https://www.youtube.com/@ListentoMina', src: '/images/youtube.png', alt: 'youtube', width: 57, height: 40 },
     { href: 'https://www.deezer.com/us/artist/253963612?host=0&deferredFl=1', src: '/images/deezer.jpg', alt: 'deezer', width: 40, height: 40 },
+    { href: 'https://www.instagram.com/listentomina', src: '/images/insta.png', alt: 'instagram', width: 40, height: 40 },
 ];
 
 interface SCWidget {
