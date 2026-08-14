@@ -92,9 +92,9 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                 (err) => console.warn(err) // flip still happens; the player shows its own ▶
             );
         }
-        // No WebGPU: no mark drawing, no shards. The artwork blooms straight
-        // in and flips to the player, and the mark is a static PNG locked
-        // where the engine would have docked it (.markLock in the CSS).
+        // Neither GPU backend started: no mark drawing, no shards. The artwork
+        // blooms straight in and flips to the player, and the mark is a static
+        // PNG locked where the engine would have docked it (.markLock in the CSS).
         const runFallback = (gsap: typeof import('gsap').gsap) => {
             if (disposed) return;
             setFallback(true);
@@ -116,15 +116,32 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                 .to(card, { rotationY: 180, duration: 0.8, ease: 'power2.inOut' }, '<');
         };
 
-        // dynamic imports keep the WebGPU engine (and lil-gui/gsap) out of the build-time render.
-        // Unsupported browsers never download the engine at all — the rejection
-        // drops straight into the catch below, which runs the fallback.
-        const engine: Promise<typeof import('@/effects/effect')> = navigator.gpu
-            ? import('@/effects/effect')
-            : Promise.reject(new Error('WebGPU unavailable'));
-        Promise.all([import('gsap'), engine])
-            .then(([{ gsap }, m]) =>
-                m.createMinaEffect(canvas, 'ephemeral', SHOW_GUI, withKeys).then((e) => {
+        // Engine backends, best first: WebGPU, else a WebGL2 port of the same
+        // sequence. The adapter probe runs BEFORE either module is imported, so
+        // only one backend is ever downloaded and — more importantly — the
+        // canvas stays untouched until the choice is made: a canvas can hold
+        // exactly one context type, so a half-started WebGPU attempt would
+        // poison the WebGL2 retry. If both fail, the catch runs the static path.
+        const pickEngine = async (): Promise<(c: HTMLCanvasElement) => Promise<MinaEffect>> => {
+            let gpuOK = false;
+            if (navigator.gpu) {
+                try {
+                    gpuOK = !!(await navigator.gpu.requestAdapter());
+                } catch (err) {
+                    console.warn('WebGPU adapter probe failed:', err);
+                }
+            }
+            if (gpuOK) {
+                const m = await import('@/effects/effect');
+                return (c) => m.createMinaEffect(c, 'ephemeral', SHOW_GUI, withKeys);
+            }
+            const m = await import('@/effects/effect-gl');
+            return (c) => m.createMinaEffectGL(c, 'ephemeral', SHOW_GUI, withKeys);
+        };
+        // dynamic imports keep the engine (and lil-gui/gsap) out of the build-time render
+        Promise.all([import('gsap'), pickEngine()])
+            .then(([{ gsap }, create]) =>
+                create(canvas).then((e) => {
                     if (disposed) {
                         e.destroy();
                         return;
