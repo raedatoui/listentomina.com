@@ -33,9 +33,11 @@ No test suite.
 
 `src/pages/effects.tsx` is the homepage — `index.tsx` is a one-line re-export of it, so `/` and `/effects` render the same page. It is a standalone page hosting a WebGPU animation announcing the "Ephemeral Trail" release: the MINA mark draws itself as lines, its extended lines shatter the viewport into shards that resolve to the cover art, the shard layer hands off invisibly to the real page, then the mark docks to the upper left and the h1 fades in. Ported from the `apps/mina-neweffects` prototype (kept untouched as reference). The page dynamic-imports the engine in a `useEffect` and boots the `ephemeral` preset.
 
+`src/pages/loop.tsx` (`/loop`) is a second consumer of the engine: the `loop` preset plus a page-owned GSAP timeline that yoyos `params.progress` 0↔1 forever — draw, bloom peak, undraw — no cover reveal, no dock, keys off. Deep engine reference (state machine, timeline math, bloom formula, choreo semantics): `src/effects/ENGINE.md`.
+
 ### Module layout (`src/effects/`)
 
-- `effect.ts` — the stateful engine: `createMinaEffect(canvas, preset?)` → device, pipelines, render loop, move state machine. `destroy()` is mandatory (reactStrictMode double-mounts). Keys: R replay · M move · H hide panel — they fire even while typing in GUI fields.
+- `effect.ts` — the stateful engine: `createMinaEffect(canvas, preset?)` → device, pipelines, render loop, move state machine. `destroy()` is mandatory (reactStrictMode double-mounts). Keys: R replay · M move · H hide panel — they fire even while typing in GUI fields; gated by `createMinaEffect`'s 4th arg `withKeys` (default on — `/loop` passes false so a stray keystroke can't restart or dock the mark).
 - `layout.ts` — pure geometry, no GPU/DOM: `buildLayout` (collinear line merge → greedy growth graph → convex cell split → union-find shard merge), `buildMovePlan`. All colours are baked here at build time via `getImageData`.
 - `texture.ts` — the `TextureSource` seam: fits a static image into a viewport-sized canvas (GPU texture + per-point colour sampler). Live-HTML rasterization was deliberately decoupled; restoring it means producing another TextureSource, nothing else changes.
 - `shaders/*.ts` — WGSL strings (mosaic shards, line ribbons, dots, bloom post-chain).
@@ -51,6 +53,9 @@ No test suite.
 - Timeline math: the mark-drawing phase's wall-clock share is `duration / (1 + whiteDur + colorDur + texDur + hold)`. "Fast draw, slow reveal" is tuned by weighting the reveal stages, not by `duration` alone.
 - Colours (shard flash via `flashTint`, per-segment via `lineTint`, dots) are sampled at build time through `accentColor` — hue kept, brightness lifted; hueless near-black falls back to white for dots and to the configured line colour for segments. The docked mark ends white *because it docks over the black margin*; dock it over the artwork and it colourises.
 - `onPlay`/`onMove` on the engine handle are claimed by preset tweens — pages listen on `onPhase` (`'play' | 'move' | 'docked'`). The h1 reveal is a sticky `'docked'` listener (hiding it on replay causes spurious fade-outs; the shard layer covers it anyway).
+- Choreo's `onPlay`/`onMove` handlers (and `dispose`) call `gsap.killTweensOf(params)` on the **whole** params object — any page-owned tween dies on replay. A preset with no `tweens` disposes at bind time, leaving `onPlay`/`onMove` unbound; that's what makes `/loop`'s page-owned timeline safe.
+- The engine cannot run without a texture: no `TextureSource` → no layout → nothing draws and `firstFrame` only settles via its 6 s safety timer. Failed loads self-heal to a fallback texture.
+- Zeroed reveal durations (`whiteDur/colorDur/texDur/hold` all 0) are tolerated: `growSpan = 1`, so progress 0↔1 is exactly the line draw — but the shard layer then never fades; force it black (`whiteLevel: 0`, `colorBoost: 0`, `veil: 1`) as the `loop` preset does.
 - Uniforms take CSS px; the canvas backing store is dpr-scaled (cap 2). All blending premultiplied. `MAX_LINE_INST = 96` — overflow is silently dropped.
 - TS specifics: `@webgpu/types` via `src/types/webgpu.d.ts`; `target: ES2017` exists for the layout code's Map iteration (type-check only — SWC ignores it); arrays fed to `writeBuffer` need `Float32Array<ArrayBuffer>` annotations, and null-narrowing doesn't reach hoisted functions (hence the guard style around device/context init).
 

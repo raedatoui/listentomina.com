@@ -37,6 +37,10 @@
                 "destination": "/effects.html"
             },
             {
+                "source": "loop",
+                "destination": "/loop.html"
+            },
+            {
                 "source": "**",
                 "destination": "/index.html"
             }

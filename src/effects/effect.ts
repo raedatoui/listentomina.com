@@ -35,7 +35,7 @@ export interface MinaEffect {
     onPhase?: (phase: 'play' | 'move' | 'docked') => void;
 }
 
-export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = 'default', withGui = true): Promise<MinaEffect> {
+export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = 'default', withGui = true, withKeys = true): Promise<MinaEffect> {
     if (!navigator.gpu) throw new Error('WebGPU unavailable');
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) throw new Error('WebGPU unavailable');
@@ -521,7 +521,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         if (k === 'm') doMove();
         if (k === 'h' && gui) gui.show(gui._hidden);
     };
-    addEventListener('keydown', onKey);
+    if (withKeys) addEventListener('keydown', onKey);
 
     // ---------- render loop ----------
     let last = performance.now();

@@ -1,6 +1,7 @@
 import type { Preset } from '@/effects/config';
 import { defaultPreset } from '@/effects/presets/default';
 import { ephemeral } from '@/effects/presets/ephemeral';
+import { loop } from '@/effects/presets/loop';
 
 // Named presets shown in the GUI dropdown. To add one: tune in the GUI,
 // hit "copy preset", paste into a new file here and register it below.
@@ -8,4 +9,5 @@ import { ephemeral } from '@/effects/presets/ephemeral';
 export const PRESETS: Record<string, Preset> = {
     default: defaultPreset,
     ephemeral,
+    loop,
 };
