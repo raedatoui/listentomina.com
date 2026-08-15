@@ -163,4 +163,9 @@ shader-mode blocks — anything else in that diff is drift.
 equivalent for, and nothing outside `/loop` uses them — `params.shaderMode` is pinned to
 `'lines'` and `clearInk()` is a no-op. Bloom runs in `RGBA16F` when
 `EXT_color_buffer_float` (or `_half_float`) is present and `RGBA8` otherwise, where it
-clips instead of blooming past white.
+clips instead of blooming past white — and the extension probe is not trusted on its
+own: `makePostTargets` checks `checkFramebufferStatus` and demotes the whole chain to
+`RGBA8` if a driver advertises float rendering it won't actually attach. A failure that
+survives the demotion (a backing store past the GPU's max texture size) throws, which at
+construction rejects the engine and mid-run becomes a `'lost'` handoff — because an
+unchecked incomplete attachment draws nowhere and renders the page black in silence.

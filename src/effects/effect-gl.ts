@@ -20,15 +20,7 @@
 import { bindPresetTweens, type PresetChoreo } from '@/effects/choreo';
 import { BASE, type LiveParams } from '@/effects/config';
 import type { MinaEffect } from '@/effects/effect';
-import {
-    createSegWriter,
-    deriveTimeline,
-    GLOW_MAX,
-    packLineUniforms,
-    stepEnergy,
-    writeGrowSegments,
-    writeMoveSegments,
-} from '@/effects/frame';
+import { createSegWriter, deriveTimeline, GLOW_MAX, packLineUniforms, stepEnergy, writeGrowSegments, writeMoveSegments } from '@/effects/frame';
 import { buildGui } from '@/effects/gui';
 import { buildLayout, buildMovePlan, type Dot, type MovePlan, type Placement, type Seg } from '@/effects/layout';
 import { MARK } from '@/effects/mark';
@@ -254,8 +246,11 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
     // backend exists for cannot render to float at all; there the chain runs in
     // RGBA8 and the bloom simply clips instead of blooming past white.
     const floatOK = !!(gl.getExtension('EXT_color_buffer_float') || gl.getExtension('EXT_color_buffer_half_float'));
-    const HDR_FORMAT = floatOK ? gl.RGBA16F : gl.RGBA8;
-    const HDR_TYPE = floatOK ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
+    // not const: the extension probe is necessary but NOT sufficient — a driver
+    // can advertise float rendering and still refuse to complete the
+    // framebuffer — so makePostTargets can demote the whole chain to RGBA8
+    let hdrFormat = floatOK ? gl.RGBA16F : gl.RGBA8;
+    let hdrType = floatOK ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
 
     interface Target {
         tex: WebGLTexture;
@@ -263,18 +258,28 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
         w: number;
         h: number;
     }
+    // Throws rather than returning a half-built target: an attachment that
+    // never completes is invisible at draw time — every pass writes nowhere and
+    // the page renders black with no error anywhere — so the only way it can
+    // reach a fallback is if somebody asks.
     const mkTarget = (w: number, h: number): Target => {
         const tex = must(gl.createTexture(), 'texture');
+        const fbo = must(gl.createFramebuffer(), 'framebuffer');
         gl.bindTexture(gl.TEXTURE_2D, tex);
-        gl.texImage2D(gl.TEXTURE_2D, 0, HDR_FORMAT, w, h, 0, gl.RGBA, HDR_TYPE, null);
+        gl.texImage2D(gl.TEXTURE_2D, 0, hdrFormat, w, h, 0, gl.RGBA, hdrType, null);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        const fbo = must(gl.createFramebuffer(), 'framebuffer');
         gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+        const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        if (status !== gl.FRAMEBUFFER_COMPLETE) {
+            gl.deleteTexture(tex);
+            gl.deleteFramebuffer(fbo);
+            throw new Error(`WebGL2: incomplete ${w}x${h} framebuffer (status 0x${status.toString(16)})`);
+        }
         return { tex, fbo, w, h };
     };
     let scene: Target | null = null;
@@ -285,15 +290,39 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
         gl.deleteTexture(t.tex);
         gl.deleteFramebuffer(t.fbo);
     };
-    function makePostTargets() {
+    const dropTargets = () => {
         dropTarget(scene);
         dropTarget(bloomA);
         dropTarget(bloomB);
-        scene = mkTarget(canvas.width, canvas.height);
+        scene = null;
+        bloomA = null;
+        bloomB = null;
+    };
+    // Two ways the chain can fail: a driver that advertises float rendering but
+    // won't complete a float attachment, and a backing store larger than this
+    // GPU's max texture size. The first is worth surviving — drop the WHOLE
+    // chain to RGBA8 (bloom clips instead of blooming past white) rather than
+    // leaving the three targets on mismatched formats — and the second isn't,
+    // so it throws: at construction that rejects the engine and the page takes
+    // the static path; mid-run, frame()'s resize guard turns it into a halt.
+    function makePostTargets() {
         const hw = Math.max(1, canvas.width >> 1);
         const hh = Math.max(1, canvas.height >> 1);
-        bloomA = mkTarget(hw, hh);
-        bloomB = mkTarget(hw, hh);
+        for (let attempt = 0; attempt < 2; attempt++) {
+            dropTargets();
+            try {
+                scene = mkTarget(canvas.width, canvas.height);
+                bloomA = mkTarget(hw, hh);
+                bloomB = mkTarget(hw, hh);
+                return;
+            } catch (err) {
+                if (hdrFormat === gl.RGBA8) throw err; // already at the floor
+                console.warn('WebGL2: float render targets unusable — bloom drops to RGBA8:', err);
+                hdrFormat = gl.RGBA8;
+                hdrType = gl.UNSIGNED_BYTE;
+            }
+        }
+        throw new Error('WebGL2: could not create render targets');
     }
 
     // ---------- artwork texture ----------
@@ -304,7 +333,17 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
     const maxTexDim = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
     const artTex = must(gl.createTexture(), 'texture');
     gl.bindTexture(gl.TEXTURE_2D, artTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([16, 24, 28, 255, 10, 16, 20, 255, 10, 16, 20, 255, 16, 24, 28, 255]));
+    gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        2,
+        2,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        new Uint8Array([16, 24, 28, 255, 10, 16, 20, 255, 10, 16, 20, 255, 16, 24, 28, 255])
+    );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -530,24 +569,34 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
     };
     const firstSafety = window.setTimeout(settleFirst, 6000); // a failure can't leave the cover on
 
-    // Context loss is routine on the hardware this backend exists for (tab
-    // restore, driver reset): every gl call becomes a silent no-op and the
-    // canvas goes blank, so the loop would spin on nothing. Halt and hand the
-    // page the static path — deliberately NOT preventDefault, since restoring
-    // would mean rebuilding every program, buffer and target from scratch.
-    const onContextLost = () => {
-        console.error('WebGL2 context lost');
+    // The GPU is gone or unusable and there is nothing to recover to: stop the
+    // loop and hand the page the static path.
+    const halt = (why: string) => {
+        console.error(`WebGL2: ${why}`);
         destroyed = true;
         cancelAnimationFrame(raf);
         settleFirst(); // never leave a page waiting behind the preroll cover
         api.onPhase?.('lost');
     };
+    // Context loss is routine on the hardware this backend exists for (tab
+    // restore, driver reset): every gl call becomes a silent no-op and the
+    // canvas goes blank, so the loop would spin on nothing. Deliberately NOT
+    // preventDefault — restoring would mean rebuilding every program, buffer
+    // and target from scratch.
+    const onContextLost = () => halt('context lost');
     canvas.addEventListener('webglcontextlost', onContextLost);
 
     function frame(now: number) {
         const dt = Math.min(0.05, (now - last) / 1000);
         last = now;
-        resize();
+        try {
+            resize();
+        } catch (err) {
+            // the only thing resize() can throw is render-target creation — a
+            // window grown past what this GPU will attach
+            halt(`render targets unusable — ${err}`);
+            return;
+        }
         if (cellsDirty && texSource && mode === 'main') rebuildLayoutNow();
 
         if (params.autoplay && !started && texSource && !document.hidden) {
@@ -788,9 +837,7 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
             gui?.destroy();
             choreo?.dispose();
             settleFirst(); // never leave a page waiting on a dead engine
-            dropTarget(scene);
-            dropTarget(bloomA);
-            dropTarget(bloomB);
+            dropTargets();
             gl.deleteTexture(artTex);
             gl.deleteBuffer(lineBuf);
             gl.deleteBuffer(dotMain.buf);
