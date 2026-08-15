@@ -72,9 +72,11 @@ function drawCover(g: CanvasRenderingContext2D, img: HTMLImageElement, w: number
 // store links) instead of the square swallowing the viewport.
 // The page CSS (--art-side in Effects.module.css) MUST express this same
 // formula, or the shard colours and the reveal drift from where the artwork
-// actually lands.
+// actually lands — including the boundary: CSS `orientation: portrait` matches
+// height >= width, so an exactly square viewport is PORTRAIT and this test has
+// to be >=, not >.
 export function artSide(w: number, h: number): number {
-    return h > w ? Math.min(0.85 * w, 0.58 * h) : 0.8 * Math.min(w, h);
+    return h >= w ? Math.min(0.85 * w, 0.58 * h) : 0.8 * Math.min(w, h);
 }
 
 const imageCache = new Map<string, Promise<HTMLImageElement>>();

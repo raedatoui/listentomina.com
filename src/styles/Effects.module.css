@@ -6,8 +6,10 @@
     color: #fff;
     /* side of the artwork square — the single source of truth for the card,
        the title anchor and the store links. texture.ts's artSide() MUST
-       express the same formula. Portrait sizes by viewport height so
-       squarish tablets keep bands above (mark) and below (title + links). */
+       express the same formula, boundary included: `orientation: portrait`
+       below matches height >= width, so artSide() tests h >= w. Portrait
+       sizes by viewport height so squarish tablets keep bands above (mark)
+       and below (title + links). */
     --art-side: min(80vw, 80vh);
 }
 
@@ -20,9 +22,9 @@
 /* The finale artwork: hidden through the whole reveal (the shard layer stays
    veiled in flat colour and fades over the black page), then slow-fades in
    as soon as the dock begins (the title follows once the dock completes).
-   The size still MUST match
-   texture.ts's square fit (0.8 × the viewport's short edge) so any unveiled
-   shard pixels (veil < 1) align with it.
+   The size still MUST match texture.ts's square fit — artSide(), i.e.
+   --art-side above, NOT the flat 0.8 × short edge it used to be — so any
+   unveiled shard pixels (veil < 1) align with it.
    Fixed so it covers the full viewport even though body is capped at 1440px. */
 .bg {
     position: fixed;

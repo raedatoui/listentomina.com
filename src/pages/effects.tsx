@@ -206,7 +206,9 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                     const placeDock = () => {
                         const W = window.innerWidth;
                         const H = window.innerHeight;
-                        if (H > W) {
+                        // >= not >: an exactly square viewport is portrait to CSS, and
+                        // the .markLock / .stores rules switch with it (artSide too)
+                        if (H >= W) {
                             // artwork's top edge as a viewport-height fraction (same square as texture.ts / --art-side)
                             const artTop = (H - artSide(W, H)) / (2 * H);
                             e.params.logoX2 = 0.5;
