@@ -283,6 +283,17 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                 <title>MINA — The Ephemeral Trail</title>
                 <meta name="description" content="The Ephemeral Trail — a new release from MINA" />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <meta property="og:title" content="MINA — The Ephemeral Trail" />
+                <meta property="og:description" content="The Ephemeral Trail — a new release from MINA" />
+                <meta property="og:url" content="https://listentomina.com/" />
+                <meta property="og:type" content="website" />
+                <meta property="og:image" content="https://listentomina.com/favicon.jpg" />
+                <meta property="og:image:type" content="image/jpeg" />
+                <meta property="og:image:width" content="720" />
+                <meta property="og:image:height" content="720" />
+                <meta property="og:image:alt" content="MINA — The Ephemeral Trail" />
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:image" content="https://listentomina.com/favicon.jpg" />
             </Head>
             <main className={`${montserrat.className} ${styles.page}`}>
                 <div ref={bgRef} className={styles.bg}>
