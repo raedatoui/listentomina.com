@@ -522,6 +522,20 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
     };
     const firstSafety = window.setTimeout(settleFirst, 6000); // a failure can't leave the cover on
 
+    // Context loss is routine on the hardware this backend exists for (tab
+    // restore, driver reset): every gl call becomes a silent no-op and the
+    // canvas goes blank, so the loop would spin on nothing. Halt and hand the
+    // page the static path — deliberately NOT preventDefault, since restoring
+    // would mean rebuilding every program, buffer and target from scratch.
+    const onContextLost = () => {
+        console.error('WebGL2 context lost');
+        destroyed = true;
+        cancelAnimationFrame(raf);
+        settleFirst(); // never leave a page waiting behind the preroll cover
+        api.onPhase?.('lost');
+    };
+    canvas.addEventListener('webglcontextlost', onContextLost);
+
     function frame(now: number) {
         const dt = Math.min(0.05, (now - last) / 1000);
         last = now;
@@ -872,6 +886,10 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
             if (texTimer !== null) clearTimeout(texTimer);
             removeEventListener('resize', resize);
             removeEventListener('keydown', onKey);
+            // must come off before the loseContext() below, which dispatches
+            // webglcontextlost synchronously — otherwise teardown would look
+            // like a real loss and push the page onto the fallback
+            canvas.removeEventListener('webglcontextlost', onContextLost);
             gui?.destroy();
             choreo?.dispose();
             settleFirst(); // never leave a page waiting on a dead engine

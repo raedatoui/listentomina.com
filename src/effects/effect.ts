@@ -37,8 +37,12 @@ export interface MinaEffect {
     onPlay?: () => void;
     /** fired whenever the dock move actually starts — auto-move, M key, GUI ⇄ (claimed by preset tweens) */
     onMove?: () => void;
-    /** page-facing sequence events: 'play' (reveal restarted), 'move' (dock started), 'docked' (dock finished) */
-    onPhase?: (phase: 'play' | 'move' | 'docked') => void;
+    /**
+     * page-facing sequence events: 'play' (reveal restarted), 'move' (dock started),
+     * 'docked' (dock finished), 'lost' (the GPU went away — the engine has halted
+     * itself and the page must finish the sequence without it)
+     */
+    onPhase?: (phase: 'play' | 'move' | 'docked' | 'lost') => void;
 }
 
 export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = 'default', withGui = true, withKeys = true): Promise<MinaEffect> {
@@ -46,8 +50,19 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) throw new Error('WebGPU unavailable');
     const device = await adapter.requestDevice();
+    // A lost device turns every call below into a silent no-op, so the render
+    // loop would spin forever against a blank canvas — with firstFrame already
+    // settled, the page would sit on a frozen intro with no way out. Halt the
+    // loop and tell the page, which finishes the announcement on the static
+    // path (effects.tsx). This callback can only run after the synchronous
+    // body of this function has finished, so everything it touches is bound.
     device.lost.then((info) => {
-        if (info.reason !== 'destroyed') console.error('WebGPU device lost:', info);
+        if (info.reason === 'destroyed') return; // our own destroy()
+        console.error('WebGPU device lost:', info);
+        destroyed = true;
+        cancelAnimationFrame(raf);
+        settleFirst(); // never leave a page waiting behind the preroll cover
+        api.onPhase?.('lost');
     });
     device.addEventListener('uncapturederror', (e) => console.error('WebGPU error:', (e as GPUUncapturedErrorEvent).error?.message || e));
 
@@ -920,7 +935,9 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         // glow: stacked passes, each wider and fainter, sharing the trail shading
         const ga = 0.55 * params.glow;
         const [gr, gg, gb] = hsb2rgb(params.lineH + params.glowHue, params.lineS, params.lineB);
-        const glowN = Math.max(1, Math.round(params.glowLayers));
+        // clamped to GLOW_MAX: only that many uniform buffers exist, and
+        // glowLayers is tweenable (a preset could aim it past the GUI's cap)
+        const glowN = Math.max(1, Math.min(GLOW_MAX, Math.round(params.glowLayers)));
         for (let i = 0; i < glowN; i++) {
             const t = (i + 1) / glowN;
             glowUs[i].set([

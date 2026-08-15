@@ -66,10 +66,14 @@ function loadWidget(iframe: HTMLIFrameElement): Promise<SCWidget> {
 }
 
 // Which intro a visitor actually got, as its own GA4 event name so it shows up
-// in Reports → Engagement → Events with no custom-dimension setup. gtag is
-// loaded `afterInteractive` in _document.tsx and the engine can win that race,
-// so retry briefly (bounded at ~5s) rather than dropping the sample.
-function track(event: 'intro_webgpu' | 'intro_webgl2' | 'intro_static') {
+// in Reports → Engagement → Events with no custom-dimension setup. 'intro_lost'
+// is its own event rather than another 'intro_static' so a GPU dying mid-run
+// stays distinguishable from a browser that never had one. gtag is loaded
+// `afterInteractive` in _document.tsx and the engine can win that race, so
+// retry briefly (bounded at ~5s) rather than dropping the sample.
+type IntroEvent = 'intro_webgpu' | 'intro_webgl2' | 'intro_static' | 'intro_lost';
+
+function track(event: IntroEvent) {
     let tries = 0;
     const send = () => {
         const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag;
@@ -111,12 +115,14 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                 (err) => console.warn(err) // flip still happens; the player shows its own ▶
             );
         }
-        // Neither GPU backend started: no mark drawing, no shards. The artwork
-        // blooms straight in and flips to the player, and the mark is a static
-        // PNG locked where the engine would have docked it (.markLock in the CSS).
-        const runFallback = (gsap: typeof import('gsap').gsap) => {
+        // No GPU backend started — or one died mid-run: no mark drawing, no
+        // shards. The artwork blooms straight in and flips to the player, and
+        // the mark is a static PNG locked where the engine would have docked it
+        // (.markLock in the CSS). `reduced` collapses the travel to nothing for
+        // prefers-reduced-motion: identical end state, no motion to get there.
+        const runFallback = (gsap: typeof import('gsap').gsap, event: IntroEvent = 'intro_static', reduced = false) => {
             if (disposed) return;
-            track('intro_static');
+            track(event);
             setFallback(true);
             setReady(true); // lift the preroll — the page is still black underneath
             setShowTitle(true);
@@ -124,17 +130,32 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
             const card = cardRef.current;
             const veil = veilRef.current;
             if (!bg || !card || !veil) return;
+            tl?.kill(); // a finale may already be running if the GPU died mid-sequence
             // same shape as finale(), just slower and from a cold start: the
             // artwork blooms centre-out as the white veil burns off, then the
             // cover flips over into the player
+            const k = reduced ? 0 : 1;
             tl = gsap
                 .timeline()
-                .to(bg, { opacity: 1, duration: 1.2, ease: 'power1.out' }, 0)
-                .to(bg, { maskSize: '350% 350%', webkitMaskSize: '350% 350%', duration: 1.8, ease: 'power1.inOut' }, 0)
-                .to(veil, { opacity: 0, duration: 1.8, ease: 'power1.out' }, 0)
-                .add(() => widget?.play(), '+=0.5')
-                .to(card, { rotationY: 180, duration: 0.8, ease: 'power2.inOut' }, '<');
+                .to(bg, { opacity: 1, duration: 1.2 * k, ease: 'power1.out' }, 0)
+                .to(bg, { maskSize: '350% 350%', webkitMaskSize: '350% 350%', duration: 1.8 * k, ease: 'power1.inOut' }, 0)
+                .to(veil, { opacity: 0, duration: 1.8 * k, ease: 'power1.out' }, 0)
+                .add(() => widget?.play(), reduced ? 0 : '+=0.5')
+                .to(card, { rotationY: 180, duration: 0.8 * k, ease: 'power2.inOut' }, '<');
         };
+
+        // Reduced motion: never start an engine at all. The intro is a
+        // full-viewport shard storm ending in a 3D card flip — none of which
+        // this visitor asked for — so take the static path with its own travel
+        // zeroed. They still get the artwork, title, links and player.
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            void import('gsap').then(({ gsap }) => runFallback(gsap, 'intro_static', true));
+            return () => {
+                disposed = true;
+                tl?.kill();
+                widget?.pause();
+            };
+        }
 
         // Engine backends, best first: WebGPU, else a WebGL2 port of the same
         // sequence. The adapter probe runs BEFORE either module is imported, so
@@ -226,6 +247,12 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                     };
                     e.onPhase = (phase) => {
                         if (disposed) return;
+                        if (phase === 'lost') {
+                            // the GPU went away and the engine halted itself —
+                            // the canvas is blank now, so finish without it
+                            runFallback(gsap, 'intro_lost');
+                            return;
+                        }
                         if (phase === 'play') rest(); // re-arm on every replay
                         // 'docked' is the fallback for the GUI's move scrub, which never fires 'move'
                         if (phase === 'move' || phase === 'docked') finale();

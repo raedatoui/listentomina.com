@@ -5,6 +5,10 @@ engine from a page or writing a new preset. Function and variable names are stab
 anchors; line numbers are deliberately omitted (they rot). CLAUDE.md holds the short
 "will bite" list; this file is the why behind it.
 
+Everything below describes `effect.ts` (WebGPU). `effect-gl.ts` (WebGL2) implements the
+same handle, state machine, timeline and choreography — see **Second backend** at the
+end for what it shares, what it duplicates and what it leaves out.
+
 ## Handle and lifecycle
 
 `createMinaEffect(canvas, presetName = 'default', withGui = true, withKeys = true)`
@@ -20,7 +24,13 @@ resolves to a `MinaEffect`:
   timer backstops failures). `destroy()` — mandatory (StrictMode double-mounts);
   removes listeners, destroys GUI/choreo/device, and settles `firstFrame`.
 - `onPlay`/`onMove` are **claimed by preset tweens** (choreo rebinding overwrites
-  them); pages listen on `onPhase('play' | 'move' | 'docked')`.
+  them); pages listen on `onPhase('play' | 'move' | 'docked' | 'lost')`.
+- `'lost'` is the GPU going away underneath a running engine (`device.lost` /
+  `webglcontextlost`). The engine has already stopped its own rAF and settled
+  `firstFrame` by the time it fires — it is a **handoff, not a warning**. Because
+  `firstFrame` resolves two frames in, the preroll cover is long gone, so a page that
+  ignores `'lost'` shows a permanently frozen intro. `/effects` answers by running its
+  static fallback; a page with nothing to fall back to should at least stop waiting.
 - `withKeys` gates the global R/M/H keydown listener (R → `play()`, M → `doMove()`,
   H → GUI toggle). Pass `false` on any page where a stray keystroke must not restart
   or dock the mark (`/loop` does).
@@ -123,3 +133,30 @@ timeline yoyos `params.progress` 0↔1 with a peak hold (bloom swells via
 `buildLayout` is fully deterministic (`hash(n) = fract(sin(n) * 43758.5453)` over
 fixed indices, no seed input) — every run and every loop cycle is pixel-identical.
 Varying cycles would need an engine change (seed or a public rebuild trigger).
+
+## Second backend (`effect-gl.ts`)
+
+`createMinaEffectGL(canvas, preset?, withGui?, withKeys?)` returns the same `MinaEffect`.
+`effects.tsx` picks it when `requestAdapter()` comes back empty — probing **before**
+importing either module, since a canvas holds exactly one context type.
+
+**Shared verbatim**: `layout.ts`, `texture.ts`, `presets/`, `choreo.ts`, `config.ts`,
+`gui.ts`, `mark.ts`. Geometry, colour sampling, the growth graph, the move plan and the
+declarative tweens are the same code on both paths.
+
+**Duplicated on purpose**: the state machine and the whole per-frame math — derived
+timeline, `pushSeg`, the move/main segment build, line width, the glow stack, dot
+clocks, the bloom energy filter. This is a second backend, not an abstraction, because
+`record:loop` pins the WebGPU path to byte-identical output and a shared layer would put
+that guarantee at the mercy of GL-driven refactors. The price is a standing obligation:
+**change the sequence in one and change it in the other**. The same holds for
+`shaders/*.ts` ↔ `shaders/gl.ts`. Stripping comments and diffing the two `frame()`
+bodies reduces to the API calls plus the WebGPU-only shader-mode blocks — anything else
+in that diff is drift.
+
+**Not implemented**: the /loop shader modes (`liquid`/`ripples`/`neon`/`shatter`/
+`glass`/`particles`/`swarm`/`ink`). They need storage buffers, which WebGL2 has no
+equivalent for, and nothing outside `/loop` uses them — `params.shaderMode` is pinned to
+`'lines'` and `clearInk()` is a no-op. Bloom runs in `RGBA16F` when
+`EXT_color_buffer_float` (or `_half_float`) is present and `RGBA8` otherwise, where it
+clips instead of blooming past white.
