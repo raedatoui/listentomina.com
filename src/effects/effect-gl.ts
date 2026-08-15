@@ -372,6 +372,11 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
     let cellsDirty = true;
 
     function uploadTexture(source: TextureSource) {
+        // A load started before teardown still resolves afterwards: the debounce
+        // timer is cleared by destroy(), but an in-flight loadTexture is not.
+        // Every gl call below would be a no-op on a dead context, and there is
+        // no longer anything to draw it with.
+        if (destroyed) return;
         const src = clampCanvas(source.canvas, maxTexDim);
         if (!src.width || !src.height) {
             console.warn('texture source is empty — ignored');

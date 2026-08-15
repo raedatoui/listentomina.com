@@ -551,6 +551,11 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     let cellsDirty = true;
 
     function uploadTexture(source: TextureSource) {
+        // A load started before teardown still resolves afterwards: the debounce
+        // timer is cleared by destroy(), but an in-flight loadTexture is not.
+        // Creating a texture on a destroyed (or lost) device is a validation
+        // error, and there is no longer anything to draw it with.
+        if (destroyed) return;
         const src = clampCanvas(source.canvas, device.limits.maxTextureDimension2D);
         if (!src.width || !src.height) {
             console.warn('texture source is empty — ignored');
