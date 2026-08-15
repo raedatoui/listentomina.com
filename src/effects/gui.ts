@@ -51,7 +51,9 @@ export function buildGui(params: LiveParams, hooks: GuiHooks, initialPreset: str
     gui.add(state, 'preset', Object.keys(PRESETS)).onChange(() => {
         Object.assign(params, BASE, PRESETS[state.preset]?.config);
         hooks.onPresetApplied(state.preset);
-        gui.controllersRecursive().forEach((c) => c.updateDisplay());
+        gui.controllersRecursive().forEach((c) => {
+            c.updateDisplay();
+        });
     });
     const copyCtrl = gui.add(actions, 'copyPreset').name('copy preset');
 

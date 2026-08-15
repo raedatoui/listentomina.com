@@ -657,10 +657,14 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
         };
         if (mode === 'move' && moveData) {
             const m = params.move;
-            moveData.dotsB.forEach((d, i) => putDot(dotData, i, d, 0.55 + d.order * 0.12));
+            moveData.dotsB.forEach((d, i) => {
+                putDot(dotData, i, d, 0.55 + d.order * 0.12);
+            });
             gl.bindBuffer(gl.ARRAY_BUFFER, dotMain.buf);
             gl.bufferSubData(gl.ARRAY_BUFFER, 0, dotData);
-            moveData.dotsA.forEach((d, i) => putDot(dotDataA, i, d, 0.06 + d.order * 0.1));
+            moveData.dotsA.forEach((d, i) => {
+                putDot(dotDataA, i, d, 0.06 + d.order * 0.1);
+            });
             gl.bindBuffer(gl.ARRAY_BUFFER, dotSrc.buf);
             gl.bufferSubData(gl.ARRAY_BUFFER, 0, dotDataA);
             dotUData.set([W, H, m, 0.16, lr, lg, lb, params.dotSize, 0, 1, 1, 0, 1, 1, 0]);
@@ -670,7 +674,9 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
             dotShrinkUData.set([W, H, m, 0.14, lr, lg, lb, params.dotSize, 1, 0, 1, 0, 1, 1, 1]);
             dotShrinkGlowUData.set([W, H, m, 0.14, lr, lg, lb, params.dotSize * 2.6, 1, 0, 1, 1, ga, ga, 1]);
         } else {
-            layoutDots.forEach((d, i) => putDot(dotData, i, d, params.dotStart + d.order * params.dotStagger));
+            layoutDots.forEach((d, i) => {
+                putDot(dotData, i, d, params.dotStart + d.order * params.dotStagger);
+            });
             if (layoutDots.length) {
                 gl.bindBuffer(gl.ARRAY_BUFFER, dotMain.buf);
                 gl.bufferSubData(gl.ARRAY_BUFFER, 0, dotData);

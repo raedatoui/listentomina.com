@@ -907,9 +907,13 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         };
         if (mode === 'move' && moveData) {
             const m = params.move;
-            moveData.dotsB.forEach((d, i) => putDot(dotData, i, d, 0.55 + d.order * 0.12));
+            moveData.dotsB.forEach((d, i) => {
+                putDot(dotData, i, d, 0.55 + d.order * 0.12);
+            });
             device.queue.writeBuffer(dotBuf, 0, dotData);
-            moveData.dotsA.forEach((d, i) => putDot(dotDataA, i, d, 0.06 + d.order * 0.1));
+            moveData.dotsA.forEach((d, i) => {
+                putDot(dotDataA, i, d, 0.06 + d.order * 0.1);
+            });
             device.queue.writeBuffer(dotBufA, 0, dotDataA);
             dotU.set([W, H, m, 0.16, lr, lg, lb, params.dotSize, 0, 1, 1, 0, 1, 1, 0]);
             device.queue.writeBuffer(dotUBuf, 0, dotU);
@@ -923,7 +927,9 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             dotShrinkGlowU.set([W, H, m, 0.14, lr, lg, lb, params.dotSize * 2.6, 1, 0, 1, 1, ga, ga, 1]);
             device.queue.writeBuffer(dotShrinkGlowUBuf, 0, dotShrinkGlowU);
         } else {
-            layoutDots.forEach((d, i) => putDot(dotData, i, d, params.dotStart + d.order * params.dotStagger));
+            layoutDots.forEach((d, i) => {
+                putDot(dotData, i, d, params.dotStart + d.order * params.dotStagger);
+            });
             if (layoutDots.length) device.queue.writeBuffer(dotBuf, 0, dotData);
             const dotGrowAbs = params.dotGrow; // absolute progress, like the dot clock
             dotU.set([W, H, p, dotGrowAbs, lr, lg, lb, params.dotSize, 0, 1, 1, 0, 1, 1, 0]);

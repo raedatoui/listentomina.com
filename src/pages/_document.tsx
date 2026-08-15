@@ -1,7 +1,6 @@
-import { Html, Head, Main, NextScript } from 'next/document';
+import { Head, Html, Main, NextScript } from 'next/document';
 
 import Script from 'next/script';
-import React from 'react';
 
 export default function Document() {
     return (
@@ -19,6 +18,7 @@ export default function Document() {
                     strategy="afterInteractive"
                     id="gtag"
                     async
+                    // biome-ignore lint/security/noDangerouslySetInnerHtml: the GA4 bootstrap is a static string, not user input
                     dangerouslySetInnerHTML={{
                         __html: `
                 window.dataLayer = window.dataLayer || [];

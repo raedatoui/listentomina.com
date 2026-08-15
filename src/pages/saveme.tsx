@@ -71,13 +71,14 @@ export default function SaveMe() {
                         <div className={styles.playerCol}>
                             <div className={styles.playerBox}>
                                 <iframe
+                                    title={TITLE}
                                     width="100%"
                                     height="300"
                                     scrolling="no"
                                     frameBorder="no"
                                     allow="autoplay; encrypted-media"
                                     src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/soundcloud%253Atracks%253A2287837421&color=%231c6ca6&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true&visual=true"
-                                ></iframe>
+                                />
                             </div>
                             <div className={styles.attribution}>
                                 <a href="https://soundcloud.com/listentomina" title="Mina" target="_blank" rel="noreferrer">

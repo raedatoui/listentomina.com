@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import styles from '../styles/Section.module.css';
+import { useState } from 'react';
 import Release from '@/components/release';
+import styles from '../styles/Section.module.css';
 
 const releases = [
     {
@@ -81,7 +81,7 @@ export default function Releases() {
             <h1 className={styles.sectionTitle}>Releases</h1>
             <div className={styles.releaseGrid}>
                 {releases.map((release, index) => (
-                    <div key={index} className={`${styles.releaseGridItem} ${toggledIndex === index ? styles.expanded : ''}`}>
+                    <div key={release.trackId} className={`${styles.releaseGridItem} ${toggledIndex === index ? styles.expanded : ''}`}>
                         <Release release={release} isToggled={toggledIndex === index} onToggle={() => handleToggle(index)} />
                     </div>
                 ))}

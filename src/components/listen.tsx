@@ -1,4 +1,3 @@
-import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -54,8 +53,8 @@ export default function Listen() {
         <section className={styles.section}>
             <h1 className={styles.sectionTitle}>Listen</h1>
             <div className={`${styles.iconGrid}`}>
-                {links.map((link, index) => (
-                    <Link key={index} href={link.href} target="_blank">
+                {links.map((link) => (
+                    <Link key={link.href} href={link.href} target="_blank">
                         <Image className={styles.icon} src={link.src} alt={link.alt} width={link.width * 1.5} height={link.height * 1.5} />
                     </Link>
                 ))}

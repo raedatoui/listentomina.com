@@ -1,7 +1,6 @@
-import React from 'react';
+import { Montserrat } from 'next/font/google';
 import Image from 'next/image';
 import styles from '../styles/Releases.module.css';
-import { Montserrat } from 'next/font/google';
 
 const montserrat = Montserrat({
     weight: ['300', '400', '500', '700'],
@@ -43,7 +42,7 @@ export default function Release({ release, isToggled, onToggle }: ReleaseProps) 
     if (isToggled) {
         return (
             <div className={styles.playerWrapper}>
-                <button className={styles.closeButton} onClick={() => onToggle()} aria-label="Close player">
+                <button type="button" className={styles.closeButton} onClick={() => onToggle()} aria-label="Close player">
                     ✕
                 </button>
                 <iframe
@@ -53,7 +52,7 @@ export default function Release({ release, isToggled, onToggle }: ReleaseProps) 
                     scrolling="no"
                     frameBorder="no"
                     src={`https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/${resource}/${release.trackId}${secret}&color=%23ec7a39&auto_play=${release.adSupported ? 'false' : 'true'}&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true&visual=true`}
-                ></iframe>
+                />
                 <div className={styles.playerCaption}>
                     <a href="https://soundcloud.com/listentomina" title="Mina" target="_blank" rel="noopener noreferrer">
                         Mina
@@ -79,18 +78,19 @@ export default function Release({ release, isToggled, onToggle }: ReleaseProps) 
                     alt={release.cover.alt}
                     className={styles.image}
                 />
-                <button className={styles.playButton} onClick={() => onToggle()}>
-                    <svg viewBox="0 0 64 64" fill="currentColor">
-                        <polygon points="16,8 56,32 16,56"></polygon>
+                <button type="button" className={styles.playButton} onClick={() => onToggle()} aria-label={`Play ${release.cover.alt}`}>
+                    <svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true">
+                        <polygon points="16,8 56,32 16,56" />
                     </svg>
                 </button>
             </div>
             <h4
                 className={`${styles.title} ${montserrat.className}`}
+                // biome-ignore lint/security/noDangerouslySetInnerHtml: cover names carry a hardcoded <br /> (see the catalog in releases.tsx)
                 dangerouslySetInnerHTML={{
                     __html: `${release.cover.name}`,
                 }}
-            ></h4>
+            />
         </>
     );
 }

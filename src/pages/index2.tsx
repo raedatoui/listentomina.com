@@ -1,10 +1,9 @@
-import React from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
-import styles from '@/styles/Home.module.css';
-import Releases from '@/components/releases';
-import Listen from '@/components/listen';
 import Follow from '@/components/follow';
+import Listen from '@/components/listen';
+import Releases from '@/components/releases';
+import styles from '@/styles/Home.module.css';
 
 export default function Home2() {
     return (

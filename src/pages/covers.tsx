@@ -1,11 +1,10 @@
-import React, { useEffect } from 'react';
+import localFont from 'next/font/local';
 import Head from 'next/head';
 import Image from 'next/image';
-import localFont from 'next/font/local';
+import { useEffect } from 'react';
 import coverStyles from '@/styles/Covers.module.css';
-import Script from 'next/script';
 
-const loveloFont = localFont({
+const _loveloFont = localFont({
     src: '../../public/fonts/Lovelo-Black.woff',
 });
 
@@ -76,8 +75,8 @@ export default function Home() {
             </Head>
 
             <div className={`${coverStyles.gridContainer}`} id="c">
-                {covers.map((cover, index) => (
-                    <div className={`${coverStyles.gridItem}`} key={index}>
+                {covers.map((cover) => (
+                    <div className={`${coverStyles.gridItem}`} key={cover.file}>
                         <Image src={`/images/covers/${cover.file}`} alt={cover.alt} className={`${coverStyles.gridImage}`} width={750} height={750} />
                     </div>
                 ))}

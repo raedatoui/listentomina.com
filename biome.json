@@ -38,6 +38,18 @@
             }
         }
     },
+    "overrides": [
+        {
+            "includes": ["**/src/effects/**"],
+            "linter": {
+                "rules": {
+                    "correctness": {
+                        "useHookAtTopLevel": "off"
+                    }
+                }
+            }
+        }
+    ],
     "javascript": {
         "formatter": {
             "quoteStyle": "single",

@@ -1,6 +1,5 @@
-import React from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
+import Link from 'next/link';
 import styles from '@/styles/Section.module.css';
 
 export default function Follow() {

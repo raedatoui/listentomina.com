@@ -37,13 +37,17 @@ export function bindPresetTweens(effect: TweenTarget, tweens: TweenSpec[] | unde
     }
     const rest = new Map<NumericParam, number>();
     for (const t of tweens) if (!rest.has(t.prop)) rest.set(t.prop, base[t.prop]);
-    const target = (t: TweenSpec) => (t.toScale != null ? rest.get(t.prop)! * t.toScale : (t.to ?? rest.get(t.prop)!));
+    const restOf = (prop: NumericParam) => rest.get(prop) ?? base[prop]; // every tweened prop is seeded above
+    const target = (t: TweenSpec) => {
+        const r = restOf(t.prop);
+        return t.toScale != null ? r * t.toScale : (t.to ?? r);
+    };
     const plays = tweens.filter((t) => t.on === 'play');
     const moves = tweens.filter((t) => t.on === 'move');
 
     effect.onPlay = () => {
         gsap.killTweensOf(p);
-        for (const t of tweens) p[t.prop] = rest.get(t.prop)!; // replays start from the resting values
+        for (const t of tweens) p[t.prop] = restOf(t.prop); // replays start from the resting values
         // the engine's derived timeline (frame.ts): rays are done at growSpan,
         // the last shard is fully textured at handoffAt — the default play
         // window is that resolution sweep, in seconds of the progress clock

@@ -1,12 +1,11 @@
-import React from 'react';
+import localFont from 'next/font/local';
 import Head from 'next/head';
 import Image from 'next/image';
 import Link from 'next/link';
-import localFont from 'next/font/local';
-import styles from '@/styles/Home2.module.css';
-import Releases from '@/components/releases';
-import Listen from '@/components/listen';
 import Follow from '@/components/follow';
+import Listen from '@/components/listen';
+import Releases from '@/components/releases';
+import styles from '@/styles/Home2.module.css';
 
 const lovelo = localFont({
     src: '../../public/fonts/Lovelo-Black.woff',

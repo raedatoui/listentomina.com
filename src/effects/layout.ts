@@ -444,7 +444,12 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
         return { poly, cx, cy, area: area(poly), spans };
     });
     const parent = cellInfo.map((_, i) => i);
-    const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+    const find = (i: number): number => {
+        if (parent[i] === i) return i;
+        const root = find(parent[i]);
+        parent[i] = root; // path compression
+        return root;
+    };
     const byBoundary = new Map<string, number[]>(); // shared boundary -> the cells flanking it
     cellInfo.forEach((ci, i) => {
         for (const sp of ci.spans) {
@@ -541,7 +546,7 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
 
 // ---------- movement geometry ----------
 // lines + per-edge params for an arbitrary placement (no cells/extensions)
-export function logoGeometry(W: number, H: number, pos: Placement, sample: SampleFn) {
+export function logoGeometry(W: number, H: number, pos: Placement, _sample: SampleFn) {
     const { k, ox, oy, P } = placeVerts(W, H, pos);
     const lines = new Map<string, LineGeom>();
     const edges: { L: LineGeom; ta: number; tb: number }[] = [];
