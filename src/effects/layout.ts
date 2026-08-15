@@ -625,7 +625,7 @@ export function buildMovePlan(
         const dir = Math.sign(sg.to - sg.from) || 1;
         const edge = dir > 0 ? sg.L.t1 : sg.L.t0;
         const start = hash(i * 3.37 + 9.11) * cfg.moveStagger * 0.5;
-        const exits = !hasDir || (sg.L.d[0] * dir * mvx + sg.L.d[1] * dir * mvy) > 0;
+        const exits = !hasDir || sg.L.d[0] * dir * mvx + sg.L.d[1] * dir * mvy > 0;
         const hDur = Math.max(1e-4, pxT(edge - sg.to));
         a.push({
             L: sg.L,

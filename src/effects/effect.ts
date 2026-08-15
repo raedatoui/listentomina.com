@@ -24,12 +24,40 @@ import { buildLayout, buildMovePlan, type Dot, type MovePlan, type Placement, ty
 import { MARK } from '@/effects/mark';
 import { PRESETS } from '@/effects/presets';
 import { DOT_SHADER } from '@/effects/shaders/dot';
-import { INK_DISPLAY_SHADER, INK_DU, INK_DV, INK_F, INK_K, INK_SIM_SHADER, INK_SPLAT_GAIN, INK_SPLAT_SHADER, INK_SPLAT_WIDTH, INK_STEPS } from '@/effects/shaders/ink';
+import {
+    INK_DISPLAY_SHADER,
+    INK_DU,
+    INK_DV,
+    INK_F,
+    INK_K,
+    INK_SIM_SHADER,
+    INK_SPLAT_GAIN,
+    INK_SPLAT_SHADER,
+    INK_SPLAT_WIDTH,
+    INK_STEPS,
+} from '@/effects/shaders/ink';
 import { LINE_SHADER } from '@/effects/shaders/line';
-import { GLASS_ABERRATION, GLASS_FACET, MOSAIC_MODE_GLASS, MOSAIC_MODE_SHATTER, MOSAIC_SHADER, SHATTER_ROT, SHATTER_SCATTER } from '@/effects/shaders/mosaic';
+import {
+    GLASS_ABERRATION,
+    GLASS_FACET,
+    MOSAIC_MODE_GLASS,
+    MOSAIC_MODE_SHATTER,
+    MOSAIC_SHADER,
+    SHATTER_ROT,
+    SHATTER_SCATTER,
+} from '@/effects/shaders/mosaic';
 import { PARTICLES_PER_SEG, PARTICLE_SHADER, PARTICLE_SIZE } from '@/effects/shaders/particles';
 import { POST_SHADER } from '@/effects/shaders/post';
-import { SDF_EXT_DIM, SDF_K_MAX, SDF_K_MIN, SDF_NEON_FREQ, SDF_NEON_WARP, SDF_RIPPLE_FREQ, SDF_RIPPLE_SPEED, SDF_SHADER } from '@/effects/shaders/sdf';
+import {
+    SDF_EXT_DIM,
+    SDF_K_MAX,
+    SDF_K_MIN,
+    SDF_NEON_FREQ,
+    SDF_NEON_WARP,
+    SDF_RIPPLE_FREQ,
+    SDF_RIPPLE_SPEED,
+    SDF_SHADER,
+} from '@/effects/shaders/sdf';
 import { SWARM_DRIFT, SWARM_JITTER, SWARM_PER_SEG, SWARM_SHADER, SWARM_SIZE, SWARM_STAGGER } from '@/effects/shaders/swarm';
 import { clampCanvas, fallbackTexture, loadTexture, type TextureSource } from '@/effects/texture';
 
@@ -479,7 +507,12 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         format: 'rgba8unorm',
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
     });
-    device.queue.writeTexture({ texture }, new Uint8Array([16, 24, 28, 255, 10, 16, 20, 255, 10, 16, 20, 255, 16, 24, 28, 255]), { bytesPerRow: 8 }, [2, 2]);
+    device.queue.writeTexture(
+        { texture },
+        new Uint8Array([16, 24, 28, 255, 10, 16, 20, 255, 10, 16, 20, 255, 16, 24, 28, 255]),
+        { bytesPerRow: 8 },
+        [2, 2]
+    );
 
     let mosaicBindGroup!: GPUBindGroup;
     const makeMosaicBG = () => {
@@ -879,7 +912,24 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
             device.queue.writeBuffer(particleUBuf, 0, particleU);
         }
         if (sm === 'swarm') {
-            swarmU.set([W, H, segFullCount, SWARM_PER_SEG, p, now / 1000, SWARM_SIZE, SWARM_DRIFT, SWARM_JITTER, SDF_EXT_DIM, SWARM_STAGGER, 0, 0, 0, 0, 0]);
+            swarmU.set([
+                W,
+                H,
+                segFullCount,
+                SWARM_PER_SEG,
+                p,
+                now / 1000,
+                SWARM_SIZE,
+                SWARM_DRIFT,
+                SWARM_JITTER,
+                SDF_EXT_DIM,
+                SWARM_STAGGER,
+                0,
+                0,
+                0,
+                0,
+                0,
+            ]);
             device.queue.writeBuffer(swarmUBuf, 0, swarmU);
         }
         if (sm === 'ink') {

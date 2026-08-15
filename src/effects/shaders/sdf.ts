@@ -114,10 +114,10 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
 }
 `;
 
-export const SDF_K_MAX = 90;       // liquid: smin radius at progress 0 (molten)
-export const SDF_K_MIN = 1.5;      // liquid: smin radius at progress 1 (crisp)
-export const SDF_RIPPLE_FREQ = 0.1;   // contour ring frequency, rad/px
-export const SDF_RIPPLE_SPEED = 4;    // ring phase speed, rad/s
-export const SDF_NEON_WARP = 26;      // warp amplitude, px (engine scales by motion energy)
-export const SDF_NEON_FREQ = 0.015;   // warp noise frequency, 1/px
-export const SDF_EXT_DIM = 0.35;      // brightness of extension segments vs mark segments
+export const SDF_K_MAX = 90; // liquid: smin radius at progress 0 (molten)
+export const SDF_K_MIN = 1.5; // liquid: smin radius at progress 1 (crisp)
+export const SDF_RIPPLE_FREQ = 0.1; // contour ring frequency, rad/px
+export const SDF_RIPPLE_SPEED = 4; // ring phase speed, rad/s
+export const SDF_NEON_WARP = 26; // warp amplitude, px (engine scales by motion energy)
+export const SDF_NEON_FREQ = 0.015; // warp noise frequency, 1/px
+export const SDF_EXT_DIM = 0.35; // brightness of extension segments vs mark segments

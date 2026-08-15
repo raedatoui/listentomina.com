@@ -64,7 +64,7 @@
 }
 
 .cardFront {
-    background: url('/images/the ephemeral trail cover.jpg') center / cover no-repeat;
+    background: url("/images/the ephemeral trail cover.jpg") center / cover no-repeat;
 }
 
 /* pre-rotated so it lands where the front was; flex column so the player
@@ -92,7 +92,7 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    font-family: Interstate, 'Lucida Grande', 'Lucida Sans Unicode', 'Lucida Sans', Garuda, Verdana, Tahoma, sans-serif;
+    font-family: Interstate, "Lucida Grande", "Lucida Sans Unicode", "Lucida Sans", Garuda, Verdana, Tahoma, sans-serif;
     font-weight: 100;
 }
 
@@ -257,5 +257,5 @@
 :global(.lil-gui) {
     --width: 264px;
     z-index: 10;
-    font-family: 'Montserrat', sans-serif;
+    font-family: "Montserrat", sans-serif;
 }

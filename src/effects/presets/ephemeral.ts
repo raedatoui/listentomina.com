@@ -70,6 +70,6 @@ export const ephemeral: Preset = {
         { on: 'move', prop: 'lineWidth', to: 5.5 }, // thin away over the dock
         { on: 'move', prop: 'glowWidth', to: 2 },
         { on: 'move', prop: 'bloomRadius', to: 1.5 },
-        { on: 'move', prop: 'bloomIdle', to: 0.49 }
-    ]
+        { on: 'move', prop: 'bloomIdle', to: 0.49 },
+    ],
 };

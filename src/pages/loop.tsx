@@ -78,22 +78,24 @@ export default function Loop() {
             .then(([{ gsap }, m]) =>
                 // keys off: R would hand `progress` back to the engine's clock
                 // and M would dock — either permanently breaks the loop
-                m.createMinaEffect(canvas, 'loop', SHOW_GUI, false).then((e) => {
-                    if (disposed) {
-                        e.destroy();
-                        return;
-                    }
-                    effectRef.current = e;
-                    gsapRef.current = gsap;
-                    return e.firstFrame.then(() => {
-                        if (disposed) return;
-                        setReady(true);
-                        // boot must render byte-identical to the legacy loop
-                        // (record:loop compares it): no applyLoopMode here — the
-                        // engine starts in 'lines' and these are the legacy tweens
-                        tlRef.current = buildTimeline(gsap, e, LOOP_MODES[0].peakLineWidth);
-                    });
-                })
+                m
+                    .createMinaEffect(canvas, 'loop', SHOW_GUI, false)
+                    .then((e) => {
+                        if (disposed) {
+                            e.destroy();
+                            return;
+                        }
+                        effectRef.current = e;
+                        gsapRef.current = gsap;
+                        return e.firstFrame.then(() => {
+                            if (disposed) return;
+                            setReady(true);
+                            // boot must render byte-identical to the legacy loop
+                            // (record:loop compares it): no applyLoopMode here — the
+                            // engine starts in 'lines' and these are the legacy tweens
+                            tlRef.current = buildTimeline(gsap, e, LOOP_MODES[0].peakLineWidth);
+                        });
+                    })
             )
             .catch((err) => {
                 console.error(err);
