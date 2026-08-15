@@ -20,17 +20,39 @@ function makeSource(draw: (g: CanvasRenderingContext2D, w: number, h: number) =>
     const h = Math.max(2, viewH);
     canvas.width = Math.round(w * scale);
     canvas.height = Math.round(h * scale);
+    // willReadFrequently keeps this canvas CPU-backed: cheap getImageData, slower
+    // draw. That was clearly right when sample() read a pixel at a time; with the
+    // burst cache below it is a much closer call, and worth re-measuring (against
+    // drawImage cost on the first-paint path) before touching.
     const g = canvas.getContext('2d', { willReadFrequently: true });
     if (!g) throw new Error('2d context unavailable');
     g.scale(scale, scale);
     draw(g, w, h);
+    // One readback per burst instead of one per pixel. layout.ts asks for a few
+    // hundred samples per rebuild — a shard colour for every fan triangle, plus
+    // every segment midpoint — and each getImageData call allocates an
+    // ImageData and a Uint8ClampedArray of its own.
+    //
+    // Nothing is retained: the only consumers are buildLayout and buildMovePlan,
+    // both synchronous, so a microtask queued at the first read frees the buffer
+    // as soon as that burst finishes. (A caller that sampled asynchronously
+    // would still get correct colours — just its own readback.)
+    let pixels: Uint8ClampedArray | null = null;
     return {
         canvas,
         sample(x, y) {
+            let buf = pixels;
+            if (!buf) {
+                buf = g.getImageData(0, 0, canvas.width, canvas.height).data;
+                pixels = buf;
+                queueMicrotask(() => {
+                    pixels = null;
+                });
+            }
             const px = Math.min(canvas.width - 1, Math.max(0, Math.round((x / w) * canvas.width)));
             const py = Math.min(canvas.height - 1, Math.max(0, Math.round((y / h) * canvas.height)));
-            const d = g.getImageData(px, py, 1, 1).data;
-            return [d[0] / 255, d[1] / 255, d[2] / 255];
+            const o = (py * canvas.width + px) * 4;
+            return [buf[o] / 255, buf[o + 1] / 255, buf[o + 2] / 255];
         },
     };
 }
@@ -73,37 +95,45 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 
 export async function loadTexture(url: string, viewW: number, viewH: number, fit: 'cover' | 'square' = 'cover'): Promise<TextureSource> {
     const img = await loadImage(url);
-    return makeSource((g, w, h) => {
-        if (fit === 'square') {
-            // centred square on black (album art), inset for breathing room —
-            // MUST match the page CSS behind the canvas or the handoff jumps
-            // (Effects.module.css: --art-side)
-            g.fillStyle = '#000';
-            g.fillRect(0, 0, w, h);
-            const side = artSide(w, h);
-            g.drawImage(img, (w - side) / 2, (h - side) / 2, side, side);
-        } else {
-            g.fillStyle = '#0a1216';
-            g.fillRect(0, 0, w, h);
-            drawCover(g, img, w, h);
-        }
-    }, viewW, viewH);
+    return makeSource(
+        (g, w, h) => {
+            if (fit === 'square') {
+                // centred square on black (album art), inset for breathing room —
+                // MUST match the page CSS behind the canvas or the handoff jumps
+                // (Effects.module.css: --art-side)
+                g.fillStyle = '#000';
+                g.fillRect(0, 0, w, h);
+                const side = artSide(w, h);
+                g.drawImage(img, (w - side) / 2, (h - side) / 2, side, side);
+            } else {
+                g.fillStyle = '#0a1216';
+                g.fillRect(0, 0, w, h);
+                drawCover(g, img, w, h);
+            }
+        },
+        viewW,
+        viewH
+    );
 }
 
 // last resort if the image can't load — gradient + wordmark, like the prototype
 export function fallbackTexture(viewW: number, viewH: number): TextureSource {
-    return makeSource((g, w, h) => {
-        const grad = g.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, '#0b1419');
-        grad.addColorStop(1, '#060c0f');
-        g.fillStyle = grad;
-        g.fillRect(0, 0, w, h);
-        g.fillStyle = '#ec7a39';
-        g.font = '800 120px Montserrat, sans-serif';
-        g.textAlign = 'center';
-        g.textBaseline = 'middle';
-        g.fillText('MINA', w / 2, h / 2);
-    }, viewW, viewH);
+    return makeSource(
+        (g, w, h) => {
+            const grad = g.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, '#0b1419');
+            grad.addColorStop(1, '#060c0f');
+            g.fillStyle = grad;
+            g.fillRect(0, 0, w, h);
+            g.fillStyle = '#ec7a39';
+            g.font = '800 120px Montserrat, sans-serif';
+            g.textAlign = 'center';
+            g.textBaseline = 'middle';
+            g.fillText('MINA', w / 2, h / 2);
+        },
+        viewW,
+        viewH
+    );
 }
 
 // a texture larger than the device limit would fail to upload
