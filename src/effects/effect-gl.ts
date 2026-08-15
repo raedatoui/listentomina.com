@@ -3,23 +3,34 @@
 //
 // Everything above the API line is shared verbatim: layout.ts builds the shard
 // mesh and the growing segment network, texture.ts fits the artwork and samples
-// its colours, presets/ and choreo.ts drive the params. What lives here is the
-// GL plumbing plus a copy of the per-frame math from effect.ts's render loop.
+// its colours, frame.ts derives the timeline and packs this frame's line
+// instances and glow blocks, presets/ and choreo.ts drive the params. What
+// lives here is the GL plumbing plus the state machine.
 //
 // Scope: the `lines` renderer only. The /loop shader modes (sdf field,
 // particles, swarm, ink) need storage buffers, which WebGL2 does not have, and
 // nothing outside /loop uses them.
 //
 // This is a SECOND BACKEND, not a refactor of the first — the WebGPU path is
-// untouched, and `record:loop`'s byte-identical guarantee with it. The cost is
-// that the frame math below is duplicated: change the timeline, the glow
-// stacking or the dot clocks in effect.ts and you must change them here too.
+// untouched, and `record:loop`'s byte-identical guarantee with it. What is
+// still written twice is the state machine (play/move/dock) and the dot
+// clocks, whose uniform blocks differ in shape between the two APIs: change
+// either one in effect.ts and you must change it here too.
 
 import { bindPresetTweens, type PresetChoreo } from '@/effects/choreo';
 import { BASE, type LiveParams } from '@/effects/config';
 import type { MinaEffect } from '@/effects/effect';
+import {
+    createSegWriter,
+    deriveTimeline,
+    GLOW_MAX,
+    packLineUniforms,
+    stepEnergy,
+    writeGrowSegments,
+    writeMoveSegments,
+} from '@/effects/frame';
 import { buildGui } from '@/effects/gui';
-import { buildLayout, buildMovePlan, clamp01, type Dot, hsb2rgb, type MovePlan, type Placement, type Seg } from '@/effects/layout';
+import { buildLayout, buildMovePlan, type Dot, type MovePlan, type Placement, type Seg } from '@/effects/layout';
 import { MARK } from '@/effects/mark';
 import { PRESETS } from '@/effects/presets';
 import {
@@ -34,10 +45,6 @@ import {
     GL_POST_VS,
 } from '@/effects/shaders/gl';
 import { clampCanvas, fallbackTexture, loadTexture, type TextureSource } from '@/effects/texture';
-
-const MAX_LINE_INST = 96;
-const BLOOM_ENERGY_TAU = 0.95;
-const GLOW_MAX = 3;
 
 export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName = 'default', withGui = true, withKeys = true): Promise<MinaEffect> {
     // rebound after the guard, not used through the nullable binding: narrowing
@@ -194,12 +201,13 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
         gl.vertexAttribDivisor(loc, divisor);
     };
 
-    const lineData = new Float32Array(MAX_LINE_INST * 10); // tail xy, head xy, alphaMul, motion, colour rgb, ext
+    // this frame's line instances, built by frame.ts and uploaded verbatim
+    const segw = createSegWriter();
     const lineBuf = must(gl.createBuffer(), 'buffer');
     const lineVAO = must(gl.createVertexArray(), 'VAO');
     gl.bindVertexArray(lineVAO);
     gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, lineData.byteLength, gl.DYNAMIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, segw.data.byteLength, gl.DYNAMIC_DRAW);
     attrib(0, 2, 40, 0, 1); // tail px
     attrib(1, 2, 40, 8, 1); // head px
     attrib(2, 1, 40, 16, 1); // alpha mul
@@ -551,18 +559,10 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
             if (params.progress >= 1) playing = false;
         }
 
-        // Derived timeline — identical to effect.ts: everything is expressed in
-        // "growth units" (the ray growth phase = 1), then normalised into
-        // progress space. grow -> shards resolve -> handoff fade -> formation.
+        // derived timeline (frame.ts — shared with the WebGPU backend)
         const p = params.progress;
-        const texUnits = params.whiteDur + params.colorDur + params.texDur;
-        const nrm = 1 / (1 + texUnits + params.hold);
-        const growSpan = nrm;
-        const handoffAt = (1 + texUnits) * nrm;
-        const holdSpan = Math.max(1e-4, params.hold * nrm);
-        const mosaicA = 1 - clamp01((p - handoffAt) / holdSpan);
+        const { nrm, growSpan, mosaicA, moveAt } = deriveTimeline(params);
 
-        const moveAt = Math.min(1, handoffAt + params.moveDelay / Math.max(0.1, params.duration));
         if (mode === 'main' && params.autoMove && started && !autoMoved && p >= moveAt) {
             autoMoved = true;
             doMove();
@@ -572,131 +572,27 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
         const H = canvas.clientHeight;
         const texScale = params.ripple ? params.texScale : 1;
 
-        // build this frame's line segments from the growing network
-        const q = clamp01(p / growSpan);
-        let inst = 0;
-        let motionSum = 0;
-        const pushSeg = (
-            L: { p0: [number, number]; d: [number, number] },
-            ta: number,
-            tb: number,
-            aMul: number,
-            motion: number,
-            col: [number, number, number],
-            ext: number
-        ) => {
-            if (Math.abs(tb - ta) < 0.75 || inst >= MAX_LINE_INST || aMul <= 0.003) return;
-            const o = inst * 10;
-            lineData[o] = L.p0[0] + L.d[0] * ta;
-            lineData[o + 1] = L.p0[1] + L.d[1] * ta;
-            lineData[o + 2] = L.p0[0] + L.d[0] * tb;
-            lineData[o + 3] = L.p0[1] + L.d[1] * tb;
-            lineData[o + 4] = aMul;
-            lineData[o + 5] = motion;
-            lineData[o + 6] = col[0];
-            lineData[o + 7] = col[1];
-            lineData[o + 8] = col[2];
-            lineData[o + 9] = ext;
-            motionSum += motion;
-            inst++;
-        };
+        // build this frame's line segments from the growing network (frame.ts)
+        segw.reset();
         if (mode === 'move' && moveData) {
             if (playingMove) {
                 params.move = Math.min(1, params.move + dt / params.moveDur);
                 if (params.move >= 1) playingMove = false;
             }
-            const m = params.move;
-            const fadeM = Math.max(1e-4, params.trailFade / Math.max(0.1, params.moveDur));
-            for (const s of moveData.a) {
-                if (s.exits) {
-                    const head = s.to + (s.edge - s.to) * clamp01((m - s.hStart) / s.hDur);
-                    const tail = s.from + (s.edge - s.from) * clamp01((m - s.tStart) / s.tDur);
-                    pushSeg(s.L, tail, head, 1, 1, s.col, s.isExt);
-                } else {
-                    pushSeg(s.L, s.from, s.to, 1 - clamp01((m - s.fadeStart) / s.fadeDur), 0, s.col, s.isExt);
-                }
-            }
-            for (const s of moveData.b) {
-                const head = s.X + (s.far - s.X) * clamp01((m - s.hStart) / s.hDur);
-                const tail = s.X + (s.near - s.X) * clamp01((m - s.tStart) / s.tDur);
-                const done = Math.max(s.hStart + s.hDur, s.tStart + s.tDur);
-                pushSeg(s.L, tail, head, 1, clamp01((done + fadeM - m) / fadeM), s.col, 0);
-            }
+            writeMoveSegments(segw, moveData, params.move, params);
             if (params.move >= 1 && !playingMove) commitMove();
         } else {
-            const qRaw = p / growSpan;
-            const fadeQ = Math.max(1e-4, params.trailFade / Math.max(0.1, params.duration * growSpan));
-            const n = markPalette.length;
-            const flow = bare && n > 1 ? clamp01((now - dockedAt) / 1200) : 0;
-            const FLOW_SPEED = 1.5;
-            const ft = (now / 1000) * FLOW_SPEED;
-            const segCount = Math.max(1, layoutSegs.length);
-            for (let i = 0; i < layoutSegs.length; i++) {
-                const s = layoutSegs[i];
-                if (bare && s.isExt) continue;
-                const u = (q - s.startT) / s.dur;
-                if (u <= 0) continue;
-                const head = s.from + (s.to - s.from) * clamp01(u);
-                const motion = clamp01((s.startT + s.dur + fadeQ - qRaw) / fadeQ);
-                let col = s.col;
-                if (flow > 0) {
-                    const ph = (ft + (i / segCount) * n) % n;
-                    const j = Math.floor(ph);
-                    const f = ph - j;
-                    const a = markPalette[j % n];
-                    const b = markPalette[(j + 1) % n];
-                    col = [
-                        col[0] + (a[0] + (b[0] - a[0]) * f - col[0]) * flow,
-                        col[1] + (a[1] + (b[1] - a[1]) * f - col[1]) * flow,
-                        col[2] + (a[2] + (b[2] - a[2]) * f - col[2]) * flow,
-                    ];
-                }
-                pushSeg(s.L, s.from, head, 1, motion, col, s.isExt);
-            }
+            writeGrowSegments(segw, layoutSegs, params, { p, growSpan, bare, palette: markPalette, now, dockedAt });
         }
+        const inst = segw.inst;
         if (inst) {
             gl.bindBuffer(gl.ARRAY_BUFFER, lineBuf);
-            gl.bufferSubData(gl.ARRAY_BUFFER, 0, lineData, 0, inst * 10);
+            gl.bufferSubData(gl.ARRAY_BUFFER, 0, segw.data, 0, inst * 10);
         }
 
-        const [lr, lg, lb] = hsb2rgb(params.lineH, params.lineS, params.lineB);
-        const wBase = Math.max(0.05, params.logoScale);
-        const scaleOf = (posIdx: number) => (posIdx === 0 ? params.logoScale : params.logoScale2);
-        let wf = scaleOf(curPos) / wBase;
-        if (mode === 'move' && moveData) {
-            const wTo = scaleOf(1 - curPos) / wBase;
-            wf += (wTo - wf) * clamp01(params.move);
-        }
-        const lw = Math.max(0.8, params.lineWidth * wf);
-        const [tr, tg, tb] = hsb2rgb(params.lineH + params.trailHue, params.lineS, params.lineB * params.trailDim);
-        lineUData.set([W, H, lw, 0, lr, lg, lb, 1, tr, tg, tb, 1.0, 2, params.trail, params.trailBias, params.taper, params.lineTint, params.trailDim]);
-        // glow: stacked passes, each wider and fainter, sharing the trail shading
-        const ga = 0.55 * params.glow;
-        const [gr, gg, gb] = hsb2rgb(params.lineH + params.glowHue, params.lineS, params.lineB);
-        const glowN = Math.max(1, Math.min(GLOW_MAX, Math.round(params.glowLayers)));
-        for (let i = 0; i < glowN; i++) {
-            const t = (i + 1) / glowN;
-            glowUData[i].set([
-                W,
-                H,
-                lw * (1 + params.glowWidth * t) + 4 * t,
-                1,
-                gr,
-                gg,
-                gb,
-                0.15,
-                gr,
-                gg,
-                gb,
-                (ga * 0.55 ** i) / Math.sqrt(glowN),
-                params.glowFalloff,
-                params.trail * 0.75,
-                params.trailBias,
-                params.taper,
-                params.lineTint,
-                1, // glow tail keeps the segment colour; its alpha ramp does the fading
-            ]);
-        }
+        // line + glow uniforms (frame.ts); setLineU below unpacks the same
+        // 18-float blocks the WGSL path ships as uniform buffers
+        const { lw, lr, lg, lb, ga, glowN } = packLineUniforms(lineUData, glowUData, params, W, H, curPos, mode === 'move' && !!moveData);
 
         // Dot clocks. Main mode: absolute progress. Move mode: target dots grow
         // late in the move (with pulses) while the source dots shrink away.
@@ -743,8 +639,7 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
 
         // bloom strength swells with how much of the system is moving right now,
         // low-pass filtered so mode switches don't step it
-        const energyRaw = inst ? motionSum / inst : 0;
-        energySmooth += (energyRaw - energySmooth) * (1 - Math.exp(-dt / BLOOM_ENERGY_TAU));
+        energySmooth = stepEnergy(energySmooth, segw, dt);
         const energy = energySmooth;
         // The targets exist from the constructor's resize(); this only covers the
         // window between a teardown and its rebuild — and must never drop the rAF.

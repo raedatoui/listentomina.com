@@ -9,6 +9,7 @@
 
 import gsap from 'gsap';
 import type { EffectConfig, LiveParams, NumericParam, TweenSpec } from '@/effects/config';
+import { deriveTimeline } from '@/effects/frame';
 
 // structural slice of MinaEffect (avoids importing the engine module)
 interface TweenTarget {
@@ -43,13 +44,12 @@ export function bindPresetTweens(effect: TweenTarget, tweens: TweenSpec[] | unde
     effect.onPlay = () => {
         gsap.killTweensOf(p);
         for (const t of tweens) p[t.prop] = rest.get(t.prop)!; // replays start from the resting values
-        // mirror the engine's derived timeline: rays are done at growSpan,
+        // the engine's derived timeline (frame.ts): rays are done at growSpan,
         // the last shard is fully textured at handoffAt — the default play
-        // window is that resolution sweep (in seconds of the progress clock)
-        const texUnits = p.whiteDur + p.colorDur + p.texDur;
-        const nrm = 1 / (1 + texUnits + p.hold);
-        const growEnd = nrm * p.duration;
-        const handoff = (1 + texUnits) * nrm * p.duration;
+        // window is that resolution sweep, in seconds of the progress clock
+        const { growSpan, handoffAt } = deriveTimeline(p);
+        const growEnd = growSpan * p.duration;
+        const handoff = handoffAt * p.duration;
         for (const t of plays) {
             gsap.to(p, {
                 [t.prop]: target(t),

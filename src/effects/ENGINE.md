@@ -140,19 +140,23 @@ Varying cycles would need an engine change (seed or a public rebuild trigger).
 `effects.tsx` picks it when `requestAdapter()` comes back empty — probing **before**
 importing either module, since a canvas holds exactly one context type.
 
-**Shared verbatim**: `layout.ts`, `texture.ts`, `presets/`, `choreo.ts`, `config.ts`,
-`gui.ts`, `mark.ts`. Geometry, colour sampling, the growth graph, the move plan and the
-declarative tweens are the same code on both paths.
+**Shared**: `layout.ts`, `texture.ts`, `presets/`, `choreo.ts`, `config.ts`, `gui.ts`,
+`mark.ts` — geometry, colour sampling, the growth graph, the move plan, the declarative
+tweens — plus `frame.ts`, which owns the per-frame math that decides what the frame
+looks like: `deriveTimeline`, the `SegWriter` and the two segment builders, the line and
+glow uniform blocks, the bloom energy low-pass. That is the layer to retune; both
+backends follow it for free, and `choreo.ts` reads the same `deriveTimeline` for its
+default tween window rather than restating the formula.
 
-**Duplicated on purpose**: the state machine and the whole per-frame math — derived
-timeline, `pushSeg`, the move/main segment build, line width, the glow stack, dot
-clocks, the bloom energy filter. This is a second backend, not an abstraction, because
-`record:loop` pins the WebGPU path to byte-identical output and a shared layer would put
-that guarantee at the mercy of GL-driven refactors. The price is a standing obligation:
-**change the sequence in one and change it in the other**. The same holds for
-`shaders/*.ts` ↔ `shaders/gl.ts`. Stripping comments and diffing the two `frame()`
-bodies reduces to the API calls plus the WebGPU-only shader-mode blocks — anything else
-in that diff is drift.
+**Still written twice, on purpose**: the state machine (play / move / dock), the mosaic
+and dot uniform values, and every line of pass encoding and resource lifetime. This is a
+second backend, not an abstraction, because `record:loop` pins the WebGPU path to
+byte-identical output and folding the GPU plumbing together would put that guarantee at
+the mercy of GL-driven refactors. The standing obligation is narrower than it was but
+still real: **change the state machine or the dot clocks in one and change them in the
+other**. The same holds for `shaders/*.ts` ↔ `shaders/gl.ts`. Stripping comments and
+diffing the two `frame()` bodies should reduce to API calls plus the WebGPU-only
+shader-mode blocks — anything else in that diff is drift.
 
 **Not implemented**: the /loop shader modes (`liquid`/`ripples`/`neon`/`shatter`/
 `glass`/`particles`/`swarm`/`ink`). They need storage buffers, which WebGL2 has no
