@@ -80,7 +80,16 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
     type Uni = Record<string, WebGLUniformLocation | null>;
     const uniforms = (p: WebGLProgram, names: string[]): Uni => {
         const out: Uni = {};
-        for (const n of names) out[n] = gl.getUniformLocation(p, n);
+        for (const n of names) {
+            out[n] = gl.getUniformLocation(p, n);
+            // gl.uniform*(null, …) is a spec'd no-op — no throw, no GL error. A
+            // renamed uniform, a typo, or one the compiler dropped as unused
+            // would render wrong with nothing anywhere to say why, so say it
+            // here. Compiled out of production by Next's NODE_ENV inlining.
+            if (process.env.NODE_ENV !== 'production' && !out[n]) {
+                console.warn(`WebGL2: uniform ${n} has no location — unused in the shader, or misspelled here`);
+            }
+        }
         return out;
     };
 
