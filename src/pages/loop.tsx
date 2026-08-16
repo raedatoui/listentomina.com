@@ -114,8 +114,11 @@ export default function Loop() {
         };
         const onKey = (ev: KeyboardEvent) => {
             wake();
+            // LOOP_MODES is the authority on how many modes exist, not the digit
+            // string: drop a mode and an unbounded index reads undefined, so the
+            // .id below would throw on a keystroke that used to be harmless
             const i = '123456789'.indexOf(ev.key);
-            if (i !== -1) switchModeRef.current(LOOP_MODES[i].id);
+            if (i >= 0 && i < LOOP_MODES.length) switchModeRef.current(LOOP_MODES[i].id);
         };
         window.addEventListener('pointermove', wake);
         window.addEventListener('keydown', onKey);
