@@ -29,8 +29,8 @@
                 "destination": "/saveme.html"
             },
             {
-                "source": "index2",
-                "destination": "/index2.html"
+                "source": "catalog2",
+                "destination": "/catalog2.html"
             },
             {
                 "source": "effects",

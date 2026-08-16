@@ -5,7 +5,7 @@ import Listen from '@/components/listen';
 import Releases from '@/components/releases';
 import styles from '@/styles/Home.module.css';
 
-export default function Home2() {
+export default function Catalog2() {
     return (
         <>
             <Head>

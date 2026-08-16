@@ -25,7 +25,7 @@ No test suite.
 - `src/pages/_app.tsx` wraps every page in the site shell (Lovelo font, logo header, "jejune moon" footer) **unless** the page component has a static `standalone = true` property (e.g. `catalog.tsx`, `saveme.tsx`) — standalone pages render bare and own their full layout.
 - The release catalog is hardcoded at the top of `src/components/releases.tsx`. Each entry's `trackId` is a SoundCloud track id (or playlist id when `isPlaylist: true`) used for the embedded player; `adSupported: true` disables autoplay. Cover `name` may contain `<br />` (rendered via `dangerouslySetInnerHTML`). Cover art lives in `public/images/covers/`.
 - Single-release pages (`ride.tsx`, `disobey.tsx`, `wanted.tsx`) are thin wrappers: hardcoded `cover` + `links` data passed to the shared `src/components/single.tsx`.
-- `catalog.tsx` (`/catalog`) is the hero-styled release catalog — the former homepage. `index2.tsx` is the layout that preceded it.
+- `catalog.tsx` (`/catalog`) is the hero-styled release catalog — the former homepage. `catalog2.tsx` is the layout that preceded it.
 - Styling is plain CSS Modules in `src/styles/` (one file per page/section). No Tailwind — `components.json` is a leftover shadcn config, not wired up.
 - Fonts: Lovelo via `next/font/local` from `public/fonts/` (re-declared per standalone page), Montserrat via `next/font/google`.
 
