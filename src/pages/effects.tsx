@@ -76,20 +76,24 @@ function loadWidget(iframe: HTMLIFrameElement): Promise<SCWidget> {
 // is its own event rather than another 'intro_static' so a GPU dying mid-run
 // stays distinguishable from a browser that never had one. gtag is loaded
 // `afterInteractive` in _document.tsx and the engine can win that race, so
-// retry briefly (bounded at ~5s) rather than dropping the sample.
+// retry briefly (bounded at ~5s) rather than dropping the sample. Returns a
+// canceller: an unclaimed retry chain outlives the component otherwise, and
+// StrictMode's double-mount would leave two of them racing to report one view.
 type IntroEvent = 'intro_webgpu' | 'intro_webgl2' | 'intro_static' | 'intro_lost';
 
-function track(event: IntroEvent) {
+function track(event: IntroEvent): () => void {
     let tries = 0;
+    let timer: number | undefined;
     const send = () => {
         const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag;
         if (gtag) {
             gtag('event', event);
             return;
         }
-        if (++tries < 20) setTimeout(send, 250);
+        if (++tries < 20) timer = window.setTimeout(send, 250);
     };
     send();
+    return () => window.clearTimeout(timer);
 }
 
 // `withKeys` arms the engine's R / M / H shortcuts — on at /effects (tuning),
@@ -112,6 +116,9 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
         let tl: { kill(): void } | null = null;
         let widget: SCWidget | null = null;
         let unplaceDock: (() => void) | null = null;
+        // one per reported event — a loss handoff reports twice (the backend
+        // that started, then intro_lost) and neither chain may outlive the mount
+        const stopTracking: (() => void)[] = [];
         // the player buffers behind the scenes while the intro runs
         if (playerRef.current) {
             loadWidget(playerRef.current).then(
@@ -128,7 +135,7 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
         // prefers-reduced-motion: identical end state, no motion to get there.
         const runFallback = (gsap: typeof import('gsap').gsap, event: IntroEvent = 'intro_static', reduced = false) => {
             if (disposed) return;
-            track(event);
+            stopTracking.push(track(event));
             setFallback(true);
             setReady(true); // lift the preroll — the page is still black underneath
             setShowTitle(true);
@@ -194,7 +201,7 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                         e.destroy();
                         return;
                     }
-                    track(engine.event); // the chosen backend really did start
+                    stopTracking.push(track(engine.event)); // the chosen backend really did start
                     effect = e;
                     // Portrait: the preset's upper-left dock clips at the edge and
                     // fights the artwork column — recentre the docked mark in the
@@ -273,11 +280,18 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
             )
             .catch((err) => {
                 console.warn(err);
+                // This catch covers the whole chain, including everything after
+                // an engine successfully started. Only the cold path should
+                // reach the static fallback: painting the locked PNG over a mark
+                // that is still drawing would double the artwork and report a
+                // second GA event. A live engine hands over via onPhase('lost').
+                if (effect) return;
                 // gsap resolves from the module cache here (it always loads)
                 import('gsap').then(({ gsap }) => runFallback(gsap));
             });
         return () => {
             disposed = true;
+            for (const stop of stopTracking) stop();
             tl?.kill();
             widget?.pause();
             unplaceDock?.();
