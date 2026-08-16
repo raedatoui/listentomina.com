@@ -822,33 +822,41 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
 
         const W = canvas.clientWidth;
         const H = canvas.clientHeight;
+        // Draw gates, named once and reused by both the upload and the pass
+        // below. Keeping them as one expression is the point: a uniform written
+        // for a pass that never runs is only wasted bandwidth, but a gate that
+        // drifts from its upload is a stale buffer, and the two used to be
+        // written out separately at either end of the frame.
+        const drawMosaic = mosaicA > 0.001;
         // ripple off -> the per-shard zoom starts at 1, so nothing warps
         const texScale = params.ripple ? params.texScale : 1;
-        mosaicU.set([
-            W,
-            H,
-            p,
-            mosaicA,
-            texScale,
-            growSpan,
-            params.whiteDur * nrm,
-            params.colorDur * nrm,
-            params.texDur * nrm,
-            params.whiteLevel,
-            params.colorSat,
-            params.colorBoost,
-            params.flashTint,
-            params.veil,
-            mosaicMode,
-            p, // shatter assembly drive — reversing progress explodes the shards back out
-            SHATTER_SCATTER,
-            SHATTER_ROT,
-            GLASS_ABERRATION,
-            GLASS_FACET,
-            (now / 1000) * 0.35, // glass light angle drifts slowly
-            now / 1000,
-        ]);
-        device.queue.writeBuffer(mosaicUBuf, 0, mosaicU);
+        if (drawMosaic) {
+            mosaicU.set([
+                W,
+                H,
+                p,
+                mosaicA,
+                texScale,
+                growSpan,
+                params.whiteDur * nrm,
+                params.colorDur * nrm,
+                params.texDur * nrm,
+                params.whiteLevel,
+                params.colorSat,
+                params.colorBoost,
+                params.flashTint,
+                params.veil,
+                mosaicMode,
+                p, // shatter assembly drive — reversing progress explodes the shards back out
+                SHATTER_SCATTER,
+                SHATTER_ROT,
+                GLASS_ABERRATION,
+                GLASS_FACET,
+                (now / 1000) * 0.35, // glass light angle drifts slowly
+                now / 1000,
+            ]);
+            device.queue.writeBuffer(mosaicUBuf, 0, mosaicU);
+        }
 
         // build this frame's line segments from the growing network (frame.ts)
         segw.reset();
@@ -865,11 +873,15 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         const inst = segw.inst;
         if (inst) device.queue.writeBuffer(lineBuf, 0, segw.data, 0, inst * 10);
 
-        // line + glow uniforms (frame.ts); the WGSL blocks are packed there, we
-        // only ship them
+        // Line + glow uniforms: frame.ts packs the WGSL blocks, we ship them.
+        // The pack always runs — the sdf, dot and ink uniforms below want its
+        // colours whichever renderer is active — but only the ribbon path reads
+        // the buffers, so only it pays for the upload.
         const { lw, lr, lg, lb, gr, gg, gb, ga, glowN } = packLineUniforms(lineU, glowUs, params, W, H, curPos, mode === 'move' && !!moveData);
-        device.queue.writeBuffer(lineUBuf, 0, lineU);
-        for (let i = 0; i < glowN; i++) device.queue.writeBuffer(glowUBufs[i], 0, glowUs[i]);
+        const drawRibbons = ribbonsOn && inst > 0 && lw > 0.05;
+        const drawGlow = drawRibbons && params.glow > 0.01;
+        if (drawRibbons) device.queue.writeBuffer(lineUBuf, 0, lineU);
+        if (drawGlow) for (let i = 0; i < glowN; i++) device.queue.writeBuffer(glowUBufs[i], 0, glowUs[i]);
 
         // Shader-mode uploads: mirror this frame's instances into the storage
         // buffer and pack the active renderer's uniforms — nothing runs on the
@@ -1065,10 +1077,10 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
                 },
             ],
         });
-        if (ribbonsOn && inst && lw > 0.05) {
+        if (drawRibbons) {
             pass.setPipeline(linePipeline);
             pass.setVertexBuffer(0, lineBuf);
-            if (params.glow > 0.01) {
+            if (drawGlow) {
                 // soft under-strokes first, crisp core on top
                 for (let i = glowN - 1; i >= 0; i--) {
                     // widest layer first
@@ -1154,7 +1166,7 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
                 },
             ],
         });
-        if (mosaicVBuf && mosaicVertCount && mosaicA > 0.001) {
+        if (drawMosaic && mosaicVBuf && mosaicVertCount) {
             final.setPipeline(mosaicPipeline);
             final.setBindGroup(0, mosaicBindGroup);
             final.setVertexBuffer(0, mosaicVBuf);
