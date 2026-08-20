@@ -1,5 +1,5 @@
 // MINA — WebGL2 fallback backend. Same sequence, same geometry, same timeline
-// as the WebGPU engine (src/effects/effect.ts); only the GPU API differs.
+// as the WebGPU engine (src/effects/webgpu/effect.ts); only the GPU API differs.
 //
 // Everything above the API line is shared verbatim: layout.ts builds the shard
 // mesh and the growing segment network, texture.ts fits the artwork and samples
@@ -15,16 +15,17 @@
 // untouched, and `record:loop`'s byte-identical guarantee with it. What is
 // still written twice is the state machine (play/move/dock) and the dot
 // clocks, whose uniform blocks differ in shape between the two APIs: change
-// either one in effect.ts and you must change it here too.
+// either one in webgpu/effect.ts and you must change it here too.
 
 import { bindPresetTweens, type PresetChoreo } from '@/effects/choreo';
 import { BASE, type LiveParams } from '@/effects/config';
-import type { MinaEffect } from '@/effects/effect';
 import { createSegWriter, deriveTimeline, GLOW_MAX, packLineUniforms, stepEnergy, writeGrowSegments, writeMoveSegments } from '@/effects/frame';
 import { buildGui } from '@/effects/gui';
 import { buildLayout, buildMovePlan, type Dot, type MovePlan, type Placement, type Seg } from '@/effects/layout';
 import { MARK } from '@/effects/mark';
 import { PRESETS } from '@/effects/presets';
+import { clampCanvas, fallbackTexture, loadTexture, type TextureSource } from '@/effects/texture';
+import type { MinaEffect } from '@/effects/types';
 import {
     GL_DOT_FS,
     GL_DOT_VS,
@@ -35,12 +36,11 @@ import {
     GL_POST_BLUR_FS,
     GL_POST_COMP_FS,
     GL_POST_VS,
-} from '@/effects/shaders/gl';
-import { clampCanvas, fallbackTexture, loadTexture, type TextureSource } from '@/effects/texture';
+} from '@/effects/webgl2/shaders';
 
 export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName = 'default', withGui = true, withKeys = true): Promise<MinaEffect> {
     // rebound after the guard, not used through the nullable binding: narrowing
-    // a captured const doesn't reach the closures below (same reason effect.ts
+    // a captured const doesn't reach the closures below (same reason webgpu/effect.ts
     // does maybeCtx -> ctx for the WebGPU context)
     const maybeGl = canvas.getContext('webgl2', {
         alpha: true,
@@ -158,7 +158,7 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
     }
 
     // The packed-array layouts below mirror the WGSL uniform structs 1:1, so the
-    // frame math can stay identical to effect.ts's; these unpack them onto loose
+    // frame math can stay identical to webgpu/effect.ts's; these unpack them onto loose
     // uniforms. Index comments name the struct field.
     const setLineU = (a: Float32Array) => {
         gl.uniform2f(lineU.uViewport, a[0], a[1]);
@@ -338,7 +338,7 @@ export async function createMinaEffectGL(canvas: HTMLCanvasElement, presetName =
     // No UNPACK_FLIP_Y: texImage2D puts the source's top row at v=0, exactly as
     // WebGPU's copyExternalImageToTexture does, so layout.ts's top-left-origin
     // uvs (uv = px / viewport) sample identically under both APIs. The flip
-    // convention that DOES differ is the post chain's — see shaders/gl.ts.
+    // convention that DOES differ is the post chain's — see ./shaders.ts.
     const maxTexDim = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
     const artTex = must(gl.createTexture(), 'texture');
     gl.bindTexture(gl.TEXTURE_2D, artTex);

@@ -3,8 +3,8 @@ import localFont from 'next/font/local';
 import Head from 'next/head';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
-import type { MinaEffect } from '@/effects/effect';
 import { artSide } from '@/effects/texture';
+import type { MinaEffect } from '@/effects/types';
 import styles from '@/styles/Effects.module.css';
 
 const montserrat = Montserrat({ subsets: ['latin'], weight: ['300', '600', '700', '800'] });
@@ -187,10 +187,10 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                 }
             }
             if (gpuOK) {
-                const m = await import('@/effects/effect');
+                const m = await import('@/effects/webgpu/effect');
                 return { event: 'intro_webgpu', create: (c) => m.createMinaEffect(c, 'ephemeral', SHOW_GUI, withKeys) };
             }
-            const m = await import('@/effects/effect-gl');
+            const m = await import('@/effects/webgl2/effect');
             return { event: 'intro_webgl2', create: (c) => m.createMinaEffectGL(c, 'ephemeral', SHOW_GUI, withKeys) };
         };
         // dynamic imports keep the engine (and lil-gui/gsap) out of the build-time render

@@ -1,6 +1,6 @@
 // Per-frame math shared by both backends — pure, no GPU and no DOM.
 //
-// `effect.ts` (WebGPU) and `effect-gl.ts` (WebGL2) are deliberately separate
+// `webgpu/effect.ts` and `webgl2/effect.ts` are deliberately separate
 // backends rather than one abstraction (see ENGINE.md), but the arithmetic that
 // decides what the frame LOOKS like has no business being written twice: it is
 // the part most often retuned, and it had already drifted once. Everything here
@@ -217,7 +217,7 @@ export interface LineStyle {
 // Fills the core stroke's uniform block and the first `glowN` glow blocks, and
 // hands back the scalars the rest of the frame needs (dot colours, the sdf
 // field's palette, the draw gates). `core` and `glow[i]` are the packed
-// float layouts of the WGSL `U` struct in shaders/line.ts, which shaders/gl.ts
+// float layouts of the WGSL `U` struct in webgpu/shaders/line.ts, which webgl2/shaders.ts
 // unpacks onto loose uniforms — same 18 floats either way.
 export function packLineUniforms(
     core: Float32Array,

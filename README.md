@@ -56,7 +56,7 @@ Two layout modes: `src/pages/_app.tsx` wraps pages in the site shell (logo heade
 
 ## The intro
 
-`src/effects/` holds the animation engine behind `/` and `/loop`. It picks one of three paths per visitor — WebGPU (`effect.ts`), WebGL2 (`effect-gl.ts`), or a no-engine static fallback — and each reports itself to GA4 as its own event. Geometry, presets, and the per-frame math are shared by both backends; the state machine and pass encoding are written twice and must be changed together. `src/effects/ENGINE.md` is the deep reference.
+`src/effects/` holds the animation engine behind `/` and `/loop`. It picks one of three paths per visitor — WebGPU (`webgpu/effect.ts`), WebGL2 (`webgl2/effect.ts`), or a no-engine static fallback — and each reports itself to GA4 as its own event. Geometry, presets, and the per-frame math are shared by both backends; the state machine and pass encoding are written twice and must be changed together. `src/effects/ENGINE.md` is the deep reference.
 
 ## Editing content
 

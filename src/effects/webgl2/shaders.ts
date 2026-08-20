@@ -1,5 +1,5 @@
 // GLSL ES 3.00 ports of the WGSL shaders, for the WebGL2 fallback backend
-// (src/effects/effect-gl.ts). Each stage mirrors its WGSL twin line for line —
+// (src/effects/webgl2/effect.ts). Each stage mirrors its WGSL twin line for line —
 // when you change one, change the other.
 //
 // Deliberate differences, all forced by the API rather than by taste:

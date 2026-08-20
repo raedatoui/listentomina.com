@@ -23,7 +23,9 @@ import { buildGui } from '@/effects/gui';
 import { buildLayout, buildMovePlan, type Dot, type MovePlan, type Placement, type Seg } from '@/effects/layout';
 import { MARK } from '@/effects/mark';
 import { PRESETS } from '@/effects/presets';
-import { DOT_SHADER } from '@/effects/shaders/dot';
+import { clampCanvas, fallbackTexture, loadTexture, type TextureSource } from '@/effects/texture';
+import type { MinaEffect } from '@/effects/types';
+import { DOT_SHADER } from '@/effects/webgpu/shaders/dot';
 import {
     INK_DISPLAY_SHADER,
     INK_DU,
@@ -35,8 +37,8 @@ import {
     INK_SPLAT_SHADER,
     INK_SPLAT_WIDTH,
     INK_STEPS,
-} from '@/effects/shaders/ink';
-import { LINE_SHADER } from '@/effects/shaders/line';
+} from '@/effects/webgpu/shaders/ink';
+import { LINE_SHADER } from '@/effects/webgpu/shaders/line';
 import {
     GLASS_ABERRATION,
     GLASS_FACET,
@@ -45,9 +47,9 @@ import {
     MOSAIC_SHADER,
     SHATTER_ROT,
     SHATTER_SCATTER,
-} from '@/effects/shaders/mosaic';
-import { PARTICLES_PER_SEG, PARTICLE_SHADER, PARTICLE_SIZE } from '@/effects/shaders/particles';
-import { POST_SHADER } from '@/effects/shaders/post';
+} from '@/effects/webgpu/shaders/mosaic';
+import { PARTICLES_PER_SEG, PARTICLE_SHADER, PARTICLE_SIZE } from '@/effects/webgpu/shaders/particles';
+import { POST_SHADER } from '@/effects/webgpu/shaders/post';
 import {
     SDF_EXT_DIM,
     SDF_K_MAX,
@@ -57,31 +59,8 @@ import {
     SDF_RIPPLE_FREQ,
     SDF_RIPPLE_SPEED,
     SDF_SHADER,
-} from '@/effects/shaders/sdf';
-import { SWARM_DRIFT, SWARM_JITTER, SWARM_PER_SEG, SWARM_SHADER, SWARM_SIZE, SWARM_STAGGER } from '@/effects/shaders/swarm';
-import { clampCanvas, fallbackTexture, loadTexture, type TextureSource } from '@/effects/texture';
-
-export interface MinaEffect {
-    play(): void;
-    move(): void;
-    /** reset the ink mode's reaction-diffusion state (it re-clears on the next ink frame) */
-    clearInk(): void;
-    /** resolves once the shard layer is actually painting (lift any pre-roll cover) */
-    firstFrame: Promise<void>;
-    destroy(): void;
-    /** the live parameter object the render loop reads every frame — mutate/tween freely */
-    params: LiveParams;
-    /** fired whenever the reveal (re)starts — autoplay, R key, GUI ▶ (claimed by preset tweens) */
-    onPlay?: () => void;
-    /** fired whenever the dock move actually starts — auto-move, M key, GUI ⇄ (claimed by preset tweens) */
-    onMove?: () => void;
-    /**
-     * page-facing sequence events: 'play' (reveal restarted), 'move' (dock started),
-     * 'docked' (dock finished), 'lost' (the GPU went away — the engine has halted
-     * itself and the page must finish the sequence without it)
-     */
-    onPhase?: (phase: 'play' | 'move' | 'docked' | 'lost') => void;
-}
+} from '@/effects/webgpu/shaders/sdf';
+import { SWARM_DRIFT, SWARM_JITTER, SWARM_PER_SEG, SWARM_SHADER, SWARM_SIZE, SWARM_STAGGER } from '@/effects/webgpu/shaders/swarm';
 
 export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = 'default', withGui = true, withKeys = true): Promise<MinaEffect> {
     if (!navigator.gpu) throw new Error('WebGPU unavailable');

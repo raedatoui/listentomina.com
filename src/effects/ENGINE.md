@@ -5,7 +5,12 @@ engine from a page or writing a new preset. Function and variable names are stab
 anchors; line numbers are deliberately omitted (they rot). CLAUDE.md holds the short
 "will bite" list; this file is the why behind it.
 
-Everything below describes `effect.ts` (WebGPU). `effect-gl.ts` (WebGL2) implements the
+`src/effects/` is split by backend: the root holds the API-agnostic half — geometry,
+frame math, texture, config, presets, choreo, gui, and `types.ts` (the `MinaEffect`
+handle both engines return) — while `webgpu/` and `webgl2/` hold one engine each plus
+its own shaders. Neither backend directory imports the other.
+
+Everything below describes `webgpu/effect.ts`. `webgl2/effect.ts` implements the
 same handle, state machine, timeline and choreography — see **Second backend** at the
 end for what it shares, what it duplicates and what it leaves out.
 
@@ -134,14 +139,14 @@ timeline yoyos `params.progress` 0↔1 with a peak hold (bloom swells via
 fixed indices, no seed input) — every run and every loop cycle is pixel-identical.
 Varying cycles would need an engine change (seed or a public rebuild trigger).
 
-## Second backend (`effect-gl.ts`)
+## Second backend (`webgl2/effect.ts`)
 
 `createMinaEffectGL(canvas, preset?, withGui?, withKeys?)` returns the same `MinaEffect`.
 `effects.tsx` picks it when `requestAdapter()` comes back empty — probing **before**
 importing either module, since a canvas holds exactly one context type.
 
-**Shared**: `layout.ts`, `texture.ts`, `presets/`, `choreo.ts`, `config.ts`, `gui.ts`,
-`mark.ts` — geometry, colour sampling, the growth graph, the move plan, the declarative
+**Shared**: everything at the root of `src/effects/` — `layout.ts`, `texture.ts`,
+`presets/`, `choreo.ts`, `config.ts`, `gui.ts`, `mark.ts`, `types.ts` — geometry, colour sampling, the growth graph, the move plan, the declarative
 tweens — plus `frame.ts`, which owns the per-frame math that decides what the frame
 looks like: `deriveTimeline`, the `SegWriter` and the two segment builders, the line and
 glow uniform blocks, the bloom energy low-pass. That is the layer to retune; both
@@ -154,7 +159,7 @@ second backend, not an abstraction, because `record:loop` pins the WebGPU path t
 byte-identical output and folding the GPU plumbing together would put that guarantee at
 the mercy of GL-driven refactors. The standing obligation is narrower than it was but
 still real: **change the state machine or the dot clocks in one and change them in the
-other**. The same holds for `shaders/*.ts` ↔ `shaders/gl.ts`. Stripping comments and
+other**. The same holds for `webgpu/shaders/*.ts` ↔ `webgl2/shaders.ts`. Stripping comments and
 diffing the two `frame()` bodies should reduce to API calls plus the WebGPU-only
 shader-mode blocks — anything else in that diff is drift.
 

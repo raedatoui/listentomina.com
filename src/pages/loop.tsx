@@ -2,8 +2,8 @@ import { Montserrat } from 'next/font/google';
 import Head from 'next/head';
 import { useEffect, useRef, useState } from 'react';
 import type { ShaderMode } from '@/effects/config';
-import type { MinaEffect } from '@/effects/effect';
 import { applyLoopMode, LOOP_MODES } from '@/effects/loopModes';
+import type { MinaEffect } from '@/effects/types';
 import styles from '@/styles/Loop.module.css';
 
 const montserrat = Montserrat({ subsets: ['latin'], weight: ['300', '700'] });
@@ -74,7 +74,7 @@ export default function Loop() {
         if (!canvas) return;
         let disposed = false;
         // dynamic imports keep the WebGPU engine (and lil-gui/gsap) out of the build-time render
-        Promise.all([import('gsap'), import('@/effects/effect')])
+        Promise.all([import('gsap'), import('@/effects/webgpu/effect')])
             .then(([{ gsap }, m]) =>
                 // keys off: R would hand `progress` back to the engine's clock
                 // and M would dock — either permanently breaks the loop
