@@ -54,7 +54,7 @@ No test suite.
 - `loopModes.ts` — /loop's shader-treatment bundles: one entry per `ShaderMode`, pairing the renderer with the config overrides that flatter it, plus `applyLoopMode`. Pure data, no GPU imports, so the page can pull it in at build time.
 - `config.ts` — `EffectConfig` (every tunable), `BASE`, `LiveParams` (config + transient scrubs), `TweenSpec`/`Preset` types.
 - `presets/` — named `Preset` objects: `config` values + optional declarative `tweens`. Authoring loop: tune in the GUI → "copy preset" (clipboard + console) → paste as a new file → register in `presets/index.ts`. No localStorage anywhere.
-- `gui.ts` — lil-gui panel with the preset dropdown; switching presets re-applies config over BASE, rebinds tweens, reloads the texture if it changed.
+- `gui.ts` — lil-gui panel with the preset dropdown; switching presets re-applies config over BASE, rebinds tweens, reloads the texture if it changed. Gated by `NEXT_PUBLIC_EFFECTS_GUI=true` (read in `effects.tsx`/`loop.tsx`, passed as `createMinaEffect`'s 3rd arg) — off by default and inlined at build time, so toggling it needs a dev-server restart or rebuild.
 - `choreo.ts` — GSAP interpreter for a preset's `tweens`, bound to the engine's play/move events; default tween windows anchor to the derived timeline (the resolve sweep on play, the whole dock on move).
 
 ### Invariants that will bite

@@ -34,14 +34,17 @@ pnpm check      # Biome lint + format with auto-fix
 pnpm record:loop  # capture /loop to capture/loop.mp4 (needs `pnpm dev` running + ffmpeg)
 ```
 
-No environment variables are required.
+One optional environment variable: `NEXT_PUBLIC_EFFECTS_GUI=true` shows the lil-gui tuning panel on
+`/`, `/effects`, and `/loop`. It is off by default and inlined at build time, so flipping it needs a
+restart (`NEXT_PUBLIC_EFFECTS_GUI=true pnpm dev`) or a rebuild. Nothing else reads the environment —
+`.env.example` is the full list; copy it to `.env` (gitignored) if you want it on locally.
 
 ## Site structure
 
 | Route | Source | Purpose |
 | --- | --- | --- |
 | `/` | `src/pages/index.tsx` | Homepage — *The Ephemeral Trail* intro, keyboard shortcuts off |
-| `/effects` | `src/pages/effects.tsx` | The same intro with the tuning shortcuts and GUI live |
+| `/effects` | `src/pages/effects.tsx` | The same intro with the keyboard shortcuts live (R replay, M move, H hide panel) |
 | `/loop` | `src/pages/loop.tsx` | The mark drawing and undrawing forever — source for `pnpm record:loop` |
 | `/catalog` | `src/pages/catalog.tsx` | Hero-styled release catalog — the former homepage |
 | `/catalog2` | `src/pages/catalog2.tsx` | The layout that preceded the catalog, kept as a variant |
