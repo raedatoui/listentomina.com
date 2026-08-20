@@ -360,6 +360,23 @@ export default function Effects({ withKeys = true }: { withKeys?: boolean }) {
                 <canvas ref={canvasRef} className={styles.gpu} />
                 <div className={`${styles.preroll} ${ready ? styles.gone : ''}`} />
                 {fallback && <Image className={styles.markLock} src="/images/Mina Symbol_White.png" alt="MINA" width={578} height={1104} priority />}
+                {/* Scripting off: every element above rests at opacity 0 under an opaque .preroll that only
+                    the `ready` state lifts, so the page would paint as a black rectangle. These rules are
+                    runFallback's END state with the travel removed — artwork bloomed in, veil burnt off,
+                    title and links shown — plus the docked mark, which .markLock fades in from a keyframe
+                    and so needs no JS of its own. The card is deliberately NOT flipped: the SoundCloud
+                    embed is itself a script, so the player face would be blank. Same specificity as the
+                    module's own rules, winning on document order (this is body, the stylesheet is head).
+                    Inert whenever scripting is on — the browser never applies noscript content. */}
+                <noscript>
+                    <style>{`
+                        .${styles.preroll} { display: none }
+                        .${styles.bg} { opacity: 1; -webkit-mask-size: 350% 350%; mask-size: 350% 350% }
+                        .${styles.bgVeil} { opacity: 0 }
+                        .${styles.title}, .${styles.stores} { opacity: 1 }
+                    `}</style>
+                    <img className={styles.markLock} src="/images/Mina Symbol_White.png" alt="MINA" />
+                </noscript>
             </main>
         </>
     );
