@@ -611,11 +611,16 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
     const primaryPlacement = (): Placement => ({ s: params.logoScale, x: params.logoX, y: params.logoY });
     const targetPlacement = (): Placement => ({ s: params.logoScale2, x: params.logoX2, y: params.logoY2 });
 
+    // which extension rays exist: re-rolled per play() when randomDir is on,
+    // stable across GUI-triggered rebuilds so scrubbing geometry doesn't
+    // shuffle the pattern mid-tune
+    let layoutSalt = Math.random() * 997;
+
     function rebuildLayoutNow() {
         if (!texSource) return;
         const W = canvas.clientWidth;
         const H = canvas.clientHeight;
-        const res = buildLayout(W, H, curPos === 0 ? primaryPlacement() : targetPlacement(), params, texSource.sample);
+        const res = buildLayout(W, H, curPos === 0 ? primaryPlacement() : targetPlacement(), params, texSource.sample, params.randomDir ? layoutSalt : 0);
         mosaicVBuf?.destroy();
         mosaicVBuf = device.createBuffer({ size: Math.max(32, res.verts.byteLength), usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
         device.queue.writeBuffer(mosaicVBuf, 0, res.verts);
@@ -666,6 +671,10 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         moveData = null;
         playingMove = false;
         params.move = 0;
+        if (params.randomDir) {
+            layoutSalt = Math.random() * 997;
+            cellsDirty = true; // fresh radiation pattern every run
+        }
         if (curPos !== 0) {
             curPos = 0;
             cellsDirty = true; // always start large

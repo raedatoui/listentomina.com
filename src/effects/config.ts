@@ -10,8 +10,15 @@ export interface EffectConfig {
     // sequence
     duration: number;
     stagger: number;
+    /** legacy: extension thinning is now the raysRed/raysYellow/raysGreen quotas; kept for /loop override typing */
     density: number;
     maxRays: number;
+    /** exact extension-ray counts per priority tier (EDGE_TIER in mark.ts: red diagonals/kite, yellow roof/stem/V, green frame) */
+    raysRed: number;
+    raysYellow: number;
+    raysGreen: number;
+    /** re-roll which extension rays exist on every run (keeps the radiation asymmetric, randomizes its direction) */
+    randomDir: boolean;
     autoplay: boolean;
 
     // reveal
@@ -91,6 +98,10 @@ export const BASE: EffectConfig = {
     stagger: 1.05,
     density: 0.85,
     maxRays: 3,
+    raysRed: 3,
+    raysYellow: 2,
+    raysGreen: 1,
+    randomDir: false,
     autoplay: true,
     whiteDur: 0.05,
     colorDur: 0.45,

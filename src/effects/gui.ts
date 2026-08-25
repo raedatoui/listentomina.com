@@ -5,7 +5,28 @@
 
 import GUI from 'lil-gui';
 import { BASE, type EffectConfig, type LiveParams, SETTINGS_KEYS } from '@/effects/config';
+import { BXm, EDGES, edgeTier, MARK } from '@/effects/mark';
 import { PRESETS } from '@/effects/presets';
+
+// swatches for the ray-priority reference diagram (indexed by tier)
+const TIER_COLORS = ['', '#ff5040', '#ffc832', '#3fd464'];
+
+// tiny reference: the mark with each edge painted its EDGE_TIER colour, so
+// the red/yellow/green ray counts below it are legible at a glance
+function rayDiagram(): HTMLDivElement {
+    const pad = 14;
+    const strokes = EDGES.map(([a, b]) => {
+        const [x1, y1] = MARK.V[a];
+        const [x2, y2] = MARK.V[b];
+        return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${TIER_COLORS[edgeTier(a, b)]}" stroke-width="9" stroke-linecap="round"/>`;
+    }).join('');
+    const dots = MARK.DOTS.map((d) => `<circle cx="${d.x}" cy="${d.y}" r="${MARK.R}" fill="#fff"/>`).join('');
+    const vb = `${BXm.minX - pad} ${BXm.minY - pad} ${BXm.maxX - BXm.minX + 2 * pad} ${BXm.maxY - BXm.minY + 2 * pad}`;
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;justify-content:center;padding:5px 0 7px;';
+    el.innerHTML = `<svg width="60" viewBox="${vb}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ray priority tiers">${strokes}${dots}</svg>`;
+    return el;
+}
 
 export interface GuiHooks {
     play(): void;
@@ -62,8 +83,12 @@ export function buildGui(params: LiveParams, hooks: GuiHooks, initialPreset: str
     fSeq.add(params, 'progress', 0, 1, 0.001).name('progress').listen().onChange(hooks.stopPlaying);
     fSeq.add(params, 'duration', 1, 20, 0.1).name('duration (s)');
     fSeq.add(params, 'stagger', 0, 3, 0.01).name('ray stagger').onChange(hooks.invalidateCells);
-    fSeq.add(params, 'density', 0.3, 1, 0.01).name('line density').onChange(hooks.invalidateCells);
     fSeq.add(params, 'maxRays', 1, 6, 1).name('rays / vertex').onChange(hooks.invalidateCells);
+    fSeq.$children.appendChild(rayDiagram());
+    fSeq.add(params, 'raysRed', 0, 8, 1).name('red rays').onChange(hooks.invalidateCells);
+    fSeq.add(params, 'raysYellow', 0, 8, 1).name('yellow rays').onChange(hooks.invalidateCells);
+    fSeq.add(params, 'raysGreen', 0, 8, 1).name('green rays').onChange(hooks.invalidateCells);
+    fSeq.add(params, 'randomDir').name('randomize direction').onChange(hooks.invalidateCells);
     fSeq.add(params, 'autoplay').name('autoplay on load');
 
     const fLogo = gui.addFolder('Logo');

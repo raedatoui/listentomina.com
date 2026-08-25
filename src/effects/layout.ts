@@ -6,7 +6,7 @@
 // convex, so splitting and fan-triangulation are trivial and robust.
 
 import type { EffectConfig } from '@/effects/config';
-import { CXm, CYm, EDGES, H2, MARK, SILHOUETTE } from '@/effects/mark';
+import { CXm, CYm, EDGES, edgeTier, H2, MARK, SILHOUETTE } from '@/effects/mark';
 
 export const clamp01 = (u: number) => Math.min(1, Math.max(0, u));
 export const hash = (n: number) => {
@@ -45,6 +45,8 @@ export interface Line extends LineGeom {
     drawnA: number;
     drawnB: number;
     segsOnLine: Seg[];
+    /** extension priority: 1 red / 2 yellow / 3 green — best tier of any mark edge on this line */
+    tier: 1 | 2 | 3;
 }
 
 // a growing segment: params along L, from (tail) -> to (head)
@@ -144,7 +146,11 @@ const lineKey = (dx: number, dy: number, c: number) => `${Math.round(Math.atan2(
 // Every unique logo line hosts rays that grow outward with their own random
 // delay + duration. A shard stays black until every ray bounding it has grown
 // past it ("closed"), then flashes in.
-export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectConfig, sample: SampleFn): LayoutResult {
+// `salt` shifts the hashes that pick which extension rays exist (and their
+// timing jitter): 0 keeps the historical deterministic pattern; a per-run
+// random value re-rolls the direction of the asymmetric radiation without
+// touching the mark's own edges or the rest of the sequence.
+export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectConfig, sample: SampleFn, salt = 0): LayoutResult {
     const { k, ox, oy, P } = placeVerts(W, H, pos);
     const lineCol = hsb2rgb(cfg.lineH, cfg.lineS, cfg.lineB); // segment fallback off the artwork
     const segColor = (L: LineGeom, a: number, b: number) => {
@@ -195,9 +201,11 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
                 drawnA: 0,
                 drawnB: 0,
                 segsOnLine: [],
+                tier: 3,
             };
             lines.set(key, L);
         }
+        L.tier = Math.min(L.tier, edgeTier(a, b)) as 1 | 2 | 3;
         const ta = dx * P[a][0] + dy * P[a][1];
         const tb = dx * P[b][0] + dy * P[b][1];
         L.sMin = Math.min(L.sMin, ta, tb);
@@ -258,8 +266,8 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
     // springs from whichever of its endpoints the already-drawn structure
     // reaches sooner (seeded at the centre vertex), so every new segment
     // radiates from an existing intersection. Extensions then ray outward
-    // from silhouette vertices once the network arrives there; only a
-    // `density` fraction of the allowed ones exist (larger outer shards).
+    // from silhouette vertices once the network arrives there, picked by
+    // tier quota (raysRed/raysYellow/raysGreen — see EDGE_TIER in mark.ts).
     // At most `maxRays` rays may LEAVE any one vertex, so crowded vertices
     // (the centre has 7 incident edges) no longer starburst — the edges that
     // don't fit grow inward from their far endpoint instead.
@@ -312,6 +320,22 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
         });
         vT[other] = Math.min(vT[other], bStart + e.dur);
     }
+    // Extension candidates: every line end that leaves the silhouette with
+    // room to the screen edge. Selection is by tier quota — the exact ray
+    // counts in cfg.raysRed/raysYellow/raysGreen, best salted score first
+    // (so "randomize direction" re-rolls which ends win). A line may radiate
+    // in ONE direction only — both ends of the same axis would read as
+    // symmetric — and no vertex sprouts more than MAXEXT rays.
+    interface ExtCand {
+        L: Line;
+        side: number;
+        anchor: number;
+        tEnd: number;
+        av: number;
+        hkey: number;
+        score: number;
+    }
+    const cands: ExtCand[] = [];
     uniq.forEach((L, li) => {
         L.drawnA = L.sMin;
         L.drawnB = L.sMax; // drawn interval on this line
@@ -323,8 +347,7 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
             const px = L.p0[0] + L.d[0] * (anchor + side * 3);
             const py = L.p0[1] + L.d[1] * (anchor + side * 3);
             if (inSil(px, py)) continue; // would cross the mark's interior
-            const hkey = li * 13.7 + side * 5.5;
-            if (hash(hkey + 8.8) > cfg.density) continue; // thinned on purpose
+            const hkey = li * 13.7 + side * 5.5 + salt;
             let av = 0;
             let best = Number.POSITIVE_INFINITY; // mark vertex anchoring this span end
             MARK.V.forEach((_, vi) => {
@@ -335,15 +358,50 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
                     av = vi;
                 }
             });
-            if (extCount[av] >= MAXEXT) continue; // vertex already sprouts enough
-            extCount[av]++;
-            const startT = (Number.isFinite(vT[av]) ? vT[av] : 0) + (0.02 + 0.2 * hash(hkey + 1.9)) * stag;
-            const dur = (Math.abs(tEnd - anchor) / H) * (0.8 + 0.7 * hash(hkey + 4.4));
-            segs.push({ L, from: anchor, to: tEnd, startT, dur, isExt: 1, col: segColor(L, anchor, tEnd) });
-            if (side > 0) L.drawnB = tEnd;
-            else L.drawnA = tEnd;
+            cands.push({ L, side, anchor, tEnd, av, hkey, score: hash(hkey + 8.8) });
         }
     });
+    const tierBudget: Record<1 | 2 | 3, number> = {
+        1: Math.max(0, Math.round(cfg.raysRed)),
+        2: Math.max(0, Math.round(cfg.raysYellow)),
+        3: Math.max(0, Math.round(cfg.raysGreen)),
+    };
+    const usable = (c: ExtCand) => c.L.drawnA === c.L.sMin && c.L.drawnB === c.L.sMax && extCount[c.av] < MAXEXT;
+    const take = (c: ExtCand) => {
+        extCount[c.av]++;
+        tierBudget[c.L.tier] = Math.max(0, tierBudget[c.L.tier] - 1);
+        const startT = (Number.isFinite(vT[c.av]) ? vT[c.av] : 0) + (0.02 + 0.2 * hash(c.hkey + 1.9)) * stag;
+        const dur = (Math.abs(c.tEnd - c.anchor) / H) * (0.8 + 0.7 * hash(c.hkey + 4.4));
+        segs.push({ L: c.L, from: c.anchor, to: c.tEnd, startT, dur, isExt: 1, col: segColor(c.L, c.anchor, c.tEnd) });
+        if (c.side > 0) c.L.drawnB = c.tEnd;
+        else c.L.drawnA = c.tEnd;
+    };
+    // Pass 1 — corner coverage, a hard rule: each of the mark's 6 outer
+    // vertices (apex, top corners, waist corners, bottom tip) radiates at
+    // least one ray. Corners are claimed scarcity-first (the apex only has
+    // yellow candidates, the tip only red/yellow), each preferring the
+    // highest-priority tier that still has budget; if no tier with budget
+    // reaches a corner, coverage wins anyway and the ray is drawn from the
+    // best candidate there regardless of budget.
+    const CORNERS = [7, 9, 0, 1, 4, 6];
+    for (const v of CORNERS) {
+        let pick: ExtCand | undefined;
+        for (const tier of [1, 2, 3] as const) {
+            if (tierBudget[tier] <= 0) continue;
+            pick = cands.filter((c) => c.av === v && c.L.tier === tier && usable(c)).sort((a, b) => a.score - b.score)[0];
+            if (pick) break;
+        }
+        pick ??= cands.filter((c) => c.av === v && usable(c)).sort((a, b) => a.L.tier - b.L.tier || a.score - b.score)[0];
+        if (pick) take(pick);
+    }
+    // Pass 2 — whatever budget the corners didn't consume, best score first
+    for (const tier of [1, 2, 3] as const) {
+        const pool = cands.filter((c) => c.L.tier === tier).sort((a, b) => a.score - b.score);
+        for (const c of pool) {
+            if (tierBudget[tier] <= 0) break;
+            if (usable(c)) take(c);
+        }
+    }
     // normalise all times so the last completion lands at q = 1
     let tMax = 1e-6;
     for (const s of segs) tMax = Math.max(tMax, s.startT + s.dur);

@@ -66,6 +66,41 @@ export const EDGES = (() => {
     return [...seen.values()];
 })();
 
+// Extension-ray priority tiers, from the art-direction diagram: 1 = red
+// (the long diagonals through the centre crossing and the kite edges),
+// 2 = yellow (the roof, the centre vertical, the inner V), 3 = green (the
+// three horizontals and the side verticals). Keyed "min-max" vertex pair.
+export const EDGE_TIER: Readonly<Record<string, 1 | 2 | 3>> = {
+    // red — diagonals + kite
+    '0-10': 1,
+    '1-10': 1,
+    '2-10': 1,
+    '3-10': 1,
+    '4-10': 1,
+    '6-10': 1,
+    '4-9': 1,
+    '6-9': 1,
+    // yellow — roof, centre vertical, inner V
+    '0-7': 2,
+    '1-7': 2,
+    '5-10': 2,
+    '5-8': 2,
+    '5-9': 2,
+    '4-8': 2,
+    '6-8': 2,
+    // green — horizontals + side verticals
+    '0-1': 3,
+    '2-3': 3,
+    '4-5': 3,
+    '5-6': 3,
+    '0-2': 3,
+    '2-4': 3,
+    '1-3': 3,
+    '3-6': 3,
+};
+
+export const edgeTier = (a: number, b: number): 1 | 2 | 3 => EDGE_TIER[`${Math.min(a, b)}-${Math.max(a, b)}`] ?? 3;
+
 // mark-space bounds and centre — placements scale the mark by height (H2)
 export const BXm = { minX: 53, maxX: 223.5, minY: 40.9, maxY: 487.1 };
 export const CXm = (BXm.minX + BXm.maxX) / 2;

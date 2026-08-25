@@ -21,7 +21,7 @@ resolves to a `MinaEffect`:
 
 - `params: LiveParams` — the live parameter object the render loop re-reads **every
   frame**. Mutating or GSAP-tweening it is the entire animation API. Exception:
-  geometry params (`logoScale/X/Y`, `density`, `stagger`, `maxRays`) only apply via a
+  geometry params (`logoScale/X/Y`, `raysRed/Yellow/Green`, `stagger`, `maxRays`, `randomDir`) only apply via a
   layout rebuild (`cellsDirty`, module-private — the GUI sets it; direct mutation
   doesn't).
 - `play()` / `move()` — restart the reveal / start the dock. `firstFrame` — resolves

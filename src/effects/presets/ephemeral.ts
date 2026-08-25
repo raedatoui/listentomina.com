@@ -14,7 +14,10 @@ export const ephemeral: Preset = {
         // the normalised timeline is what splits growth from resolve
         duration: 4,
         stagger: 2.16,
-        density: 0.96,
+        raysRed: 6,
+        raysYellow: 3,
+        raysGreen: 2,
+        randomDir: true,
         maxRays: 1,
         autoplay: true,
         whiteDur: 0.05,
