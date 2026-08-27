@@ -11,6 +11,7 @@ export const loop: Preset = {
         ...ephemeral.config,
         autoplay: false,
         autoMove: false,
+        randomDir: false, // record:loop compares a byte-identical boot: the layout must never re-roll
         whiteDur: 0,
         colorDur: 0,
         texDur: 0,

@@ -84,6 +84,8 @@ export function buildGui(params: LiveParams, hooks: GuiHooks, initialPreset: str
     fSeq.add(params, 'duration', 1, 20, 0.1).name('duration (s)');
     fSeq.add(params, 'stagger', 0, 3, 0.01).name('ray stagger').onChange(hooks.invalidateCells);
     fSeq.add(params, 'maxRays', 1, 6, 1).name('rays / vertex').onChange(hooks.invalidateCells);
+    fSeq.add(params, 'rayMode', ['density', 'tiers']).name('ray selection').onChange(hooks.invalidateCells);
+    fSeq.add(params, 'density', 0.3, 1, 0.01).name('line density').onChange(hooks.invalidateCells);
     fSeq.$children.appendChild(rayDiagram());
     fSeq.add(params, 'raysRed', 0, 8, 1).name('red rays').onChange(hooks.invalidateCells);
     fSeq.add(params, 'raysYellow', 0, 8, 1).name('yellow rays').onChange(hooks.invalidateCells);

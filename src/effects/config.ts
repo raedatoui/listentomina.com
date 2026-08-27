@@ -10,10 +10,15 @@ export interface EffectConfig {
     // sequence
     duration: number;
     stagger: number;
-    /** legacy: extension thinning is now the raysRed/raysYellow/raysGreen quotas; kept for /loop override typing */
+    /** how extension rays are picked: 'density' = the legacy random cull (what the homepage ships), 'tiers' = the quotas below */
+    rayMode: 'density' | 'tiers';
+    /** rayMode 'density' only: fraction of candidate extension rays kept — lower = fewer rays, larger outer shards */
     density: number;
     maxRays: number;
-    /** exact extension-ray counts per priority tier (EDGE_TIER in mark.ts: red diagonals/kite, yellow roof/stem/V, green frame) */
+    /**
+     * rayMode 'tiers' only: per-tier extension-ray quotas (EDGE_TIER in mark.ts: red diagonals/kite, yellow roof/stem/V, green frame).
+     * Targets, not exact counts: corner coverage is claimed first and overrides an exhausted tier.
+     */
     raysRed: number;
     raysYellow: number;
     raysGreen: number;
@@ -96,6 +101,7 @@ export const BASE: EffectConfig = {
     textureFit: 'cover',
     duration: 6.0,
     stagger: 1.05,
+    rayMode: 'density',
     density: 0.85,
     maxRays: 3,
     raysRed: 3,

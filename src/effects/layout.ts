@@ -321,11 +321,11 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
         vT[other] = Math.min(vT[other], bStart + e.dur);
     }
     // Extension candidates: every line end that leaves the silhouette with
-    // room to the screen edge. Selection is by tier quota — the exact ray
-    // counts in cfg.raysRed/raysYellow/raysGreen, best salted score first
-    // (so "randomize direction" re-rolls which ends win). A line may radiate
-    // in ONE direction only — both ends of the same axis would read as
-    // symmetric — and no vertex sprouts more than MAXEXT rays.
+    // room to the screen edge. `cfg.rayMode` picks how they are selected:
+    // 'density' is the legacy random cull, 'tiers' the quota system — the
+    // per-tier targets in cfg.raysRed/raysYellow/raysGreen, best salted
+    // score first (so "randomize direction" re-rolls which ends win), one
+    // direction per line, and no vertex over MAXEXT.
     interface ExtCand {
         L: Line;
         side: number;
@@ -376,30 +376,43 @@ export function buildLayout(W: number, H: number, pos: Placement, cfg: EffectCon
         if (c.side > 0) c.L.drawnB = c.tEnd;
         else c.L.drawnA = c.tEnd;
     };
-    // Pass 1 — corner coverage, a hard rule: each of the mark's 6 outer
-    // vertices (apex, top corners, waist corners, bottom tip) radiates at
-    // least one ray. Corners are claimed scarcity-first (the apex only has
-    // yellow candidates, the tip only red/yellow), each preferring the
-    // highest-priority tier that still has budget; if no tier with budget
-    // reaches a corner, coverage wins anyway and the ray is drawn from the
-    // best candidate there regardless of budget.
-    const CORNERS = [7, 9, 0, 1, 4, 6];
-    for (const v of CORNERS) {
-        let pick: ExtCand | undefined;
-        for (const tier of [1, 2, 3] as const) {
-            if (tierBudget[tier] <= 0) continue;
-            pick = cands.filter((c) => c.av === v && c.L.tier === tier && usable(c)).sort((a, b) => a.score - b.score)[0];
-            if (pick) break;
+    if (cfg.rayMode === 'density') {
+        // Legacy selection: candidates in line order, each kept unless the
+        // dice beat `density`, capped only by MAXEXT per vertex. Note it has
+        // no one-direction rule — a line may radiate from BOTH ends, which is
+        // what the shipped homepage looks like and what the tier passes below
+        // cannot reproduce at any quota.
+        for (const c of cands) {
+            if (c.score > cfg.density) continue; // thinned on purpose
+            if (extCount[c.av] >= MAXEXT) continue; // vertex already sprouts enough
+            take(c);
         }
-        pick ??= cands.filter((c) => c.av === v && usable(c)).sort((a, b) => a.L.tier - b.L.tier || a.score - b.score)[0];
-        if (pick) take(pick);
-    }
-    // Pass 2 — whatever budget the corners didn't consume, best score first
-    for (const tier of [1, 2, 3] as const) {
-        const pool = cands.filter((c) => c.L.tier === tier).sort((a, b) => a.score - b.score);
-        for (const c of pool) {
-            if (tierBudget[tier] <= 0) break;
-            if (usable(c)) take(c);
+    } else {
+        // Pass 1 — corner coverage, a hard rule: each of the mark's 6 outer
+        // vertices (apex, top corners, waist corners, bottom tip) radiates at
+        // least one ray. Corners are claimed scarcity-first (the apex only has
+        // yellow candidates, the tip only red/yellow), each preferring the
+        // highest-priority tier that still has budget; if no tier with budget
+        // reaches a corner, coverage wins anyway and the ray is drawn from the
+        // best candidate there regardless of budget.
+        const CORNERS = [7, 9, 0, 1, 4, 6];
+        for (const v of CORNERS) {
+            let pick: ExtCand | undefined;
+            for (const tier of [1, 2, 3] as const) {
+                if (tierBudget[tier] <= 0) continue;
+                pick = cands.filter((c) => c.av === v && c.L.tier === tier && usable(c)).sort((a, b) => a.score - b.score)[0];
+                if (pick) break;
+            }
+            pick ??= cands.filter((c) => c.av === v && usable(c)).sort((a, b) => a.L.tier - b.L.tier || a.score - b.score)[0];
+            if (pick) take(pick);
+        }
+        // Pass 2 — whatever budget the corners didn't consume, best score first
+        for (const tier of [1, 2, 3] as const) {
+            const pool = cands.filter((c) => c.L.tier === tier).sort((a, b) => a.score - b.score);
+            for (const c of pool) {
+                if (tierBudget[tier] <= 0) break;
+                if (usable(c)) take(c);
+            }
         }
     }
     // normalise all times so the last completion lands at q = 1

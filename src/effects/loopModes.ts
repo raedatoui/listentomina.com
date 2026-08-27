@@ -10,7 +10,22 @@ import { loop } from '@/effects/presets/loop';
 type LoopOverrides = Partial<
     Omit<
         EffectConfig,
-        'logoScale' | 'logoX' | 'logoY' | 'density' | 'stagger' | 'maxRays' | 'textureUrl' | 'textureFit' | 'autoplay' | 'autoMove' | 'duration'
+        | 'logoScale'
+        | 'logoX'
+        | 'logoY'
+        | 'stagger'
+        | 'maxRays'
+        | 'rayMode'
+        | 'density'
+        | 'raysRed'
+        | 'raysYellow'
+        | 'raysGreen'
+        | 'randomDir'
+        | 'textureUrl'
+        | 'textureFit'
+        | 'autoplay'
+        | 'autoMove'
+        | 'duration'
     >
 >;
 
