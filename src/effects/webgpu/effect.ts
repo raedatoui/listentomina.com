@@ -620,7 +620,14 @@ export async function createMinaEffect(canvas: HTMLCanvasElement, presetName = '
         if (!texSource) return;
         const W = canvas.clientWidth;
         const H = canvas.clientHeight;
-        const res = buildLayout(W, H, curPos === 0 ? primaryPlacement() : targetPlacement(), params, texSource.sample, params.randomDir ? layoutSalt : 0);
+        const res = buildLayout(
+            W,
+            H,
+            curPos === 0 ? primaryPlacement() : targetPlacement(),
+            params,
+            texSource.sample,
+            params.randomDir ? layoutSalt : 0
+        );
         mosaicVBuf?.destroy();
         mosaicVBuf = device.createBuffer({ size: Math.max(32, res.verts.byteLength), usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
         device.queue.writeBuffer(mosaicVBuf, 0, res.verts);
