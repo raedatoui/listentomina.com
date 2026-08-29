@@ -1,5 +1,11 @@
 // Deterministic frame-by-frame export of /loop to a seamless 4K60 mp4.
 // Usage: `pnpm dev` in one terminal, `pnpm record:loop` in another.
+// Flags (defaults reproduce the landscape 4K capture byte for byte):
+//   --mode=glass      click a shader-mode chip before the warm-up
+//   --size=540x1170   CSS viewport; the backing store (= the mp4) is 2x this
+//   --scale=0.7       override logoScale (the mark is sized off viewport HEIGHT,
+//                     so a portrait frame wants less than the preset's 0.95)
+//   --out=loop-glass  basename under capture/ (frames go to capture/frames-<name>/)
 // Needs ffmpeg on PATH; opens a headful Chrome window for the capture
 // (headless Chrome is still flaky about WebGPU). Output: capture/loop.mp4,
 // with the lossless PNG frames left in capture/frames/ for re-encodes.
@@ -16,6 +22,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
 
+// --k=v flags, no dependency: everything has a default that keeps the legacy run
+const arg = (k, d) => process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3) ?? d;
+const MODE = arg('mode', ''); // '' = leave the page in its boot mode ('lines')
+const [VW, VH] = arg('size', '1920x1080').split('x').map(Number);
+const SCALE = Number(arg('scale', 0)); // 0 = keep the preset's logoScale
+let patched = 0; // --scale rewrites this many chunk occurrences
+const NAME = arg('out', 'loop');
+
 const URL = 'http://localhost:3000/loop';
 const FPS = 60;
 const CYCLE_S = 5.5; // DRAW 2.2 + PEAK 1.0 + UNDRAW 1.8 + DARK 0.5 (loop.tsx)
@@ -23,14 +37,14 @@ const FRAMES = Math.round(CYCLE_S * FPS);
 const SKIP = Math.ceil((0.4 + 3 * CYCLE_S) * FPS); // timeline delay + 3 warmup cycles
 const DT = 1000 / FPS;
 const CAPTURE = path.join(import.meta.dirname, '..', 'capture');
-const FRAMES_DIR = path.join(CAPTURE, 'frames');
-const MP4 = path.join(CAPTURE, 'loop.mp4');
+const FRAMES_DIR = path.join(CAPTURE, NAME === 'loop' ? 'frames' : `frames-${NAME}`);
+const MP4 = path.join(CAPTURE, `${NAME}.mp4`);
 
 const browser = await puppeteer.launch({
     executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     headless: false,
     args: ['--enable-unsafe-webgpu', '--no-first-run', '--hide-crash-restore-bubble'],
-    defaultViewport: { width: 1920, height: 1080, deviceScaleFactor: 2 }, // engine caps dpr at 2 -> 4K backing store
+    defaultViewport: { width: VW, height: VH, deviceScaleFactor: 2 }, // engine caps dpr at 2 -> the backing store is exactly 2x
 });
 
 try {
@@ -59,6 +73,30 @@ try {
         };
     });
 
+    // --scale has to land before any page script runs: logoScale is read only
+    // when the engine rebuilds its layout (behind a private cellsDirty), so
+    // there is no way to set it from out here at runtime. Rewriting it in the
+    // served dev chunks instead means the very first layout is already built at
+    // the new scale — nothing to trigger, nothing to warm up twice. The colon in
+    // the pattern is what keeps logoScale2 (the dock placement) out of it.
+    if (SCALE) {
+        await page.setRequestInterception(true);
+        page.on('request', async (req) => {
+            const u = req.url();
+            if (!u.startsWith(new global.URL(URL).origin) || !new global.URL(u).pathname.endsWith('.js')) return req.continue();
+            try {
+                const res = await fetch(u);
+                const body = (await res.text()).replace(/logoScale:\s*[\d.]+/g, () => {
+                    patched++;
+                    return `logoScale: ${SCALE}`;
+                });
+                await req.respond({ status: res.status, contentType: res.headers.get('content-type') ?? 'application/javascript', body });
+            } catch {
+                await req.continue();
+            }
+        });
+    }
+
     await page.goto(URL, { waitUntil: 'domcontentloaded' });
 
     // Boot: the engine's preroll frames are rAF-driven, so tick until the page
@@ -77,6 +115,22 @@ try {
         if (performance.now() - bootStart > 30000) throw new Error('timed out waiting for the effect to boot');
         await new Promise((r) => setTimeout(r, 10));
     }
+    // Chip click, not a digit key: the label is the authority on which mode is
+    // which. It resets progress to 0 and rebuilds the breath, so it must land
+    // before the warm-up — SKIP covers the new timeline's 0.4 s delay.
+    if (MODE) {
+        const hit = await page.evaluate((label) => {
+            const btn = [...document.querySelectorAll('button')].find((b) => b.textContent.endsWith(` ${label}`));
+            btn?.click();
+            return !!btn;
+        }, MODE);
+        if (!hit) throw new Error(`no shader-mode chip labelled "${MODE}"`);
+        console.log('switched to %s', MODE);
+    }
+
+    if (SCALE && !patched) throw new Error('--scale matched no logoScale in the served chunks (minified build?)');
+    if (SCALE) console.log('logoScale %s (%d occurrences patched)', SCALE, patched);
+
     console.log('booted, warming up %d frames…', SKIP);
 
     for (let done = 0; done < SKIP; done += 20) {

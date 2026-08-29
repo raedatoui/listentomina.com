@@ -34,6 +34,9 @@ pnpm check      # Biome lint + format with auto-fix
 pnpm record:loop  # capture /loop to capture/loop.mp4 (needs `pnpm dev` running + ffmpeg)
 ```
 
+See [Recording the loop](#recording-the-loop) for the flags that pick a shader mode, frame size, and
+mark scale.
+
 One optional environment variable: `NEXT_PUBLIC_EFFECTS_GUI=true` shows the lil-gui tuning panel on
 `/`, `/effects`, and `/loop`. It is off by default and inlined at build time, so flipping it needs a
 restart (`NEXT_PUBLIC_EFFECTS_GUI=true pnpm dev`) or a rebuild. Nothing else reads the environment —
@@ -57,6 +60,48 @@ Two layout modes: `src/pages/_app.tsx` wraps pages in the site shell (logo heade
 ## The intro
 
 `src/effects/` holds the animation engine behind `/` and `/loop`. It picks one of three paths per visitor — WebGPU (`webgpu/effect.ts`), WebGL2 (`webgl2/effect.ts`), or a no-engine static fallback — and each reports itself to GA4 as its own event. Geometry, presets, and the per-frame math are shared by both backends; the state machine and pass encoding are written twice and must be changed together. `src/effects/ENGINE.md` is the deep reference.
+
+## Recording the loop
+
+`scripts/record-loop.mjs` exports `/loop` to a seamless mp4. It drives the page from a virtual clock
+(hijacked `performance.now` / `rAF`, stepped at exactly 1/60 s), so the result is deterministic no
+matter how slow the frame readback is: it skips three warm-up cycles to let the bloom's motion-energy
+filter settle, then grabs exactly one 5.5 s breath, which loops end to end. Needs `pnpm dev` running
+in another terminal and ffmpeg on PATH, and it opens a headful Chrome window — headless Chrome is
+still flaky about WebGPU. Lossless PNGs are left in `capture/frames-<name>/` for re-encodes.
+
+With no flags it produces the 4K60 landscape capture at `capture/loop.mp4`:
+
+```bash
+pnpm record:loop
+```
+
+Flags go through `pnpm run` (the bare `pnpm record:loop` shorthand rejects unknown flags), or call
+`node scripts/record-loop.mjs` directly:
+
+| Flag | Default | What it does |
+| --- | --- | --- |
+| `--mode=<id>` | the page's boot mode (`lines`) | Clicks the shader-mode chip with that label before the warm-up |
+| `--size=WxH` | `1920x1080` | CSS viewport; the engine caps dpr at 2, so the mp4 is exactly 2× this |
+| `--scale=<n>` | the preset's `logoScale` (0.95) | Mark size, as a fraction of viewport **height** |
+| `--out=<name>` | `loop` | `capture/<name>.mp4`, frames in `capture/frames-<name>/` |
+
+The shader modes are the nine bundles in `src/effects/loopModes.ts` — `lines`, `liquid`, `ripples`,
+`neon`, `shatter`, `glass`, `particles`, `swarm`, `ink` — the same ones the chips (and digits 1–9)
+switch between on the page. Each pairs a renderer with the config overrides that flatter it.
+
+`--scale` matters for anything not 16:9: the mark is sized off viewport height, so the preset's 0.95
+runs edge to edge in a portrait frame. A vertical (iPhone / Reels / Stories) capture of the glass
+mode, 1080×1920:
+
+```bash
+pnpm run record:loop --mode=glass --size=540x960 --scale=0.7 --out=loop-glass-9x16
+```
+
+`logoScale` is read only when the engine rebuilds its layout, behind a private `cellsDirty` — there
+is no way to set it from outside at runtime, so `--scale` rewrites the value in the JS chunks the dev
+server serves, before any page script runs. That means it only works against `pnpm dev` (unminified
+chunks); the script throws rather than silently recording at the preset value if the patch misses.
 
 ## Editing content
 
